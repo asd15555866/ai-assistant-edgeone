@@ -1,0 +1,7 @@
+# EdgeOne Makers / Cloudflare Workers 配置
+# KV 命名空间绑定
+[[kv_namespaces]]
+binding = "AI_ASSISTANT_KV"
+id = "ns-NCLpy1akS1Tu"
+
+# 兼容配置：vars 从 edgeone.json 的 env 读取，无需重复
