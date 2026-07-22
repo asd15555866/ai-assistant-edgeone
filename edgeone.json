@@ -10,13 +10,7 @@
   "cloudFunctions": {
     "nodejs": {
       "includeFiles": ["_shared/**"],
-      "maxDuration": 60,
-      "kv": [
-        {
-          "binding": "AI_ASSISTANT_KV",
-          "namespace_id": "ai-assistant-kv"
-        }
-      ]
+      "maxDuration": 60
     }
   },
   "agents": {
