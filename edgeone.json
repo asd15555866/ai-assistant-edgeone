@@ -7,16 +7,16 @@
   "installCommand": "cd frontend && npm install",
   "outputDirectory": "frontend/dist",
   "nodeVersion": "22.11.0",
+  "kv": [
+    {
+      "binding": "AI_ASSISTANT_KV",
+      "namespace_id": "ai-assistant-kv"
+    }
+  ],
   "cloudFunctions": {
     "nodejs": {
       "includeFiles": ["_shared/**"],
-      "maxDuration": 60,
-      "kv": [
-        {
-          "binding": "AI_ASSISTANT_KV",
-          "namespace_id": "ai-assistant-kv"
-        }
-      ]
+      "maxDuration": 60
     }
   },
   "agents": {
@@ -44,7 +44,6 @@
     "AI_GATEWAY_BASE_URL": "@AI_GATEWAY_BASE_URL",
     "AI_GATEWAY_API_KEY": "@AI_GATEWAY_API_KEY",
     "AI_MODEL": "deepseek-chat",
-    "KV_NAMESPACE": "AI_ASSISTANT_KV",
     "NOTIFICATION_EMAIL": "",
     "DEFAULT_TIMEOUT_MS": "30000",
     "CRON_SCAN_INTERVAL": "60",
