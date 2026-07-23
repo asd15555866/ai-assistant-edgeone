@@ -7,15 +7,35 @@ import ChatWindow from './components/ChatWindow';
 import AdminPanel from './components/AdminPanel';
 import { Loader2, Sparkles } from 'lucide-react';
 
+const CONV_ID_KEY = 'lastConvId';
+
 export default function App() {
   const { user, loading: authLoading, error: authError, login, register, logout } = useAuth();
   const { conversations, loading: convsLoading, createConversation, renameConversation, deleteConversation } = useConversations();
   const { messages, isStreaming, currentStreamContent, currentState, error: chatError, sendMessage, loadMessages, clearMessages, abort } = useChat();
 
-  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [activeConvId, setActiveConvId] = useState<string | null>(() => localStorage.getItem(CONV_ID_KEY));
   const [input, setInput] = useState('');
   const [showAdmin, setShowAdmin] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // 页面挂载时：从 localStorage 恢复上次对话
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    if (!restored && activeConvId) {
+      loadMessages(activeConvId);
+    }
+    setRestored(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // activeConvId 变化时 → 持久化到 localStorage
+  useEffect(() => {
+    if (activeConvId) {
+      localStorage.setItem(CONV_ID_KEY, activeConvId);
+    } else {
+      localStorage.removeItem(CONV_ID_KEY);
+    }
+  }, [activeConvId]);
 
   const handleSelectConversation = useCallback((id: string) => {
     setActiveConvId(id);
