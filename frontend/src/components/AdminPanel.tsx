@@ -15,11 +15,13 @@ const API_BASE = '/api';
 // EdgeOne Makers 内置免费模型列表（@makers/ 前缀）
 // https://pages.edgeone.ai/zh/document/models-vendors-overview
 const BUILTIN_MODELS = [
-  '@makers/deepseek-v4-flash',
+  '@makers/hy3',
+  '@makers/hy3-preview',
   '@makers/deepseek-v4-pro',
-  '@makers/deepseek-reasoner',
-  '@makers/gemini-2.5-flash',
-  '@makers/gpt-4o-mini',
+  '@makers/deepseek-v4-flash',
+  '@makers/minimax-m3',
+  '@makers/minimax-m2.7',
+  '@makers/kimi-k2.6',
 ];
 
 type StatsData = {
@@ -505,10 +507,33 @@ function SettingsTab() {
       <div className="space-y-4">
         {/* 模型选择 - 两级：厂商 → 模型 */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            AI 模型
-          </label>
-          {modelsInfo.source === 'gateway' && providers.length > 0 ? (
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium text-gray-700">
+              AI 模型
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setModelsInfo({ source: undefined });
+                fetch(`${API_BASE}/models`, { credentials: 'include' })
+                  .then((r) => r.json())
+                  .then((data) => {
+                    if (data.models) {
+                      setAvailableModels(data.models);
+                      setModelsInfo({ source: data.source, message: data.message, count: data.count });
+                    }
+                  })
+                  .catch(() => {
+                    setAvailableModels(BUILTIN_MODELS);
+                    setModelsInfo({ source: 'builtin', message: '使用 EdgeOne Makers 内置模型（@makers/ 前缀，免费）' });
+                  });
+              }}
+              className="text-xs text-primary-600 hover:text-primary-700"
+            >
+              🔄 刷新列表
+            </button>
+          </div>
+          {(modelsInfo.source === 'gateway' || modelsInfo.source === 'probed') && providers.length > 0 ? (
             <>
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <select
@@ -534,7 +559,7 @@ function SettingsTab() {
                 </select>
               </div>
               <p className="text-xs text-gray-400">
-                ✅ 网关已配置 <b>{modelsInfo.count}</b> 个模型，点击下方"保存设置"生效
+                ✅ 已识别 <b>{modelsInfo.count}</b> 个可用模型（厂商 API Key 已绑定的才会显示）
               </p>
             </>
           ) : (
@@ -548,8 +573,10 @@ function SettingsTab() {
               <p className="text-xs text-gray-400 mt-1">
                 {modelsInfo.source === 'none' && '⚠️ 未配置网关 API Key，请到 EdgeOne 控制台 → Models 添加'}
                 {modelsInfo.source === 'error' && '❌ 网关调用失败：' + modelsInfo.message}
+                {modelsInfo.source === 'unsupported' && 'ℹ️ ' + modelsInfo.message}
+                {modelsInfo.source === 'fallback' && 'ℹ️ ' + modelsInfo.message}
                 {!modelsInfo.source && '⏳ 正在获取可用模型...'}
-                {modelsInfo.source === 'gateway' && providers.length === 0 && '网关返回了 0 个模型，请检查 API Key 是否有效'}
+                {(modelsInfo.source === 'gateway' || modelsInfo.source === 'probed') && providers.length === 0 && '网关已配置但暂无可用模型，请检查 API Key'}
               </p>
             </>
           )}
@@ -613,6 +640,7 @@ function SettingsTab() {
  */
 function detectProvider(modelName: string): string {
   const m = modelName.toLowerCase();
+  if (m.startsWith('@makers/')) return 'EdgeOne 内置';
   if (m.startsWith('gpt-') || m.includes('openai') || m.startsWith('o1-') || m.startsWith('o3-')) return 'OpenAI';
   if (m.startsWith('claude-')) return 'Anthropic';
   if (m.startsWith('gemini-') || m.startsWith('gemma-')) return 'Google';
