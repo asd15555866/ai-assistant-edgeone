@@ -1,12 +1,9 @@
 /**
  * 对话管理 API - 列表与创建
  *
- * 路径: /api/conversations（精确匹配，无尾斜杠）
- * 路由：EdgeOne 把非 catch-all 的 index.ts 编译为 ^/api/conversations$
- * 因此列表端点（无 ID）必须放在这里
- *
- * GET  /api/conversations  - 列表
- * POST /api/conversations  - 创建
+ * 路径: GET/POST /api/conversations
+ * 在 Cloud Functions 中通过 context.agent.store 访问 Agent 的对话数据
+ * 官方文档: https://pages.edgeone.ai/zh/document/agents-conversation-storage
  */
 import { KVStore, Conversation, generateId } from '../../../_shared/kv';
 import { json } from '../../../_shared/response';
@@ -23,9 +20,27 @@ export async function onRequestGet(context: any) {
   if (!payload) return json(401, { error: '未登录' });
   const userId = payload.user_id;
 
+  // 优先使用 context.agent.store（Agent 对话存储）
+  if (context.agent?.store?.listConversations) {
+    try {
+      const result = await context.agent.store.listConversations({ userId });
+      const conversations = result?.items || result?.conversations || result || [];
+      const items: any[] = Array.isArray(conversations) ? conversations : [];
+      log(SRC, { method: 'GET', path: pathname, userId, count: items.length, source: 'agent.store', status: 200, dur: Date.now() - t0 });
+      return json(200, { conversations: items.map((c: any) => ({
+        id: c.id || c.conversation_id,
+        title: c.title || c.name || '新对话',
+        created_at: c.created_at || c.createdAt,
+        updated_at: c.updated_at || c.updatedAt,
+        message_count: c.message_count || c.messageCount || 0,
+      })) });
+    } catch (e) { /* 降级到 KV */ }
+  }
+
+  // 降级：从 KV 读取
   const kv = new KVStore(env.AI_ASSISTANT_KV);
   const conversations = await kv.listUserConversations(userId);
-  log(SRC, { method: 'GET', path: pathname, userId, count: conversations.length, status: 200, dur: Date.now() - t0 });
+  log(SRC, { method: 'GET', path: pathname, userId, count: conversations.length, source: 'kv', status: 200, dur: Date.now() - t0 });
   return json(200, { conversations });
 }
 
@@ -37,10 +52,26 @@ export async function onRequestPost(context: any) {
   if (!payload) return json(401, { error: '未登录' });
   const userId = payload.user_id;
 
-  const kv = new KVStore(env.AI_ASSISTANT_KV);
   const body = await request.json().catch(() => ({}));
+
+  // 优先用 context.agent.store 创建对话
+  const conversationId = generateId();
+  if (context.agent?.store?.appendMessage) {
+    try {
+      await context.agent.store.appendMessage({
+        conversationId,
+        role: 'system',
+        content: `Conversation created: ${body.title || '新对话'}`,
+      });
+      log(SRC, { method: 'POST', path: pathname, userId, convId: conversationId, source: 'agent.store', status: 201, dur: Date.now() - t0 });
+      return json(201, { conversation: { id: conversationId, title: body.title || '新对话', message_count: 0 } });
+    } catch (e) { /* 降级到 KV */ }
+  }
+
+  // 降级：用 KV 创建
+  const kv = new KVStore(env.AI_ASSISTANT_KV);
   const conversation: Conversation = {
-    id: generateId(),
+    id: conversationId,
     user_id: userId,
     title: body.title || '新对话',
     created_at: Date.now(),
@@ -48,6 +79,6 @@ export async function onRequestPost(context: any) {
     message_count: 0,
   };
   await kv.createConversation(conversation);
-  log(SRC, { method: 'POST', path: pathname, userId, convId: conversation.id, status: 201, dur: Date.now() - t0 });
+  log(SRC, { method: 'POST', path: pathname, userId, convId: conversation.id, source: 'kv', status: 201, dur: Date.now() - t0 });
   return json(201, { conversation });
 }
