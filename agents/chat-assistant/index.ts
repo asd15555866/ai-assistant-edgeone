@@ -61,6 +61,22 @@ type ChatContext = {
 /**
  * 创建追踪 span（优先使用平台 context.tracer，降级到 traceLog）
  */
+/**
+ * 大小写无关地从 request.headers 取值
+ * Cloudflare Workers/EdgeOne Agent runtime 将 header 名转小写
+ * 直接用 request.headers['Accept'] 会拿到 undefined
+ */
+function getHeader(request: any, name: string): string | null {
+  const headers = request?.headers;
+  if (!headers) return null;
+  if (typeof headers.get === 'function') return headers.get(name);
+  const lower = name.toLowerCase();
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === lower) return headers[key] ?? null;
+  }
+  return null;
+}
+
 function tracerSpan(ctx: ChatContext, name: string, attrs?: Record<string, unknown>) {
   const msg = `[${name}]${attrs ? ' ' + JSON.stringify(attrs) : ''}`;
   ctx.traceLog.push(msg);
@@ -894,19 +910,19 @@ export async function onRequest(context: any) {
   const { request, env } = context;
   const t0 = Date.now();
 
-  // 支持 SSE 流式响应
-  const isSSE = request.headers['Accept'] === 'text/event-stream';
+  // 支持 SSE 流式响应（header 名大小写无关）
+  const isSSE = getHeader(request, 'accept') === 'text/event-stream';
 
   // 内部鉴权：直接读取 Cookie 并验证 JWT
-  const cookieHeader = request.headers['Cookie'] || request.headers['cookie'] || '';
+  const cookieHeader = getHeader(request, 'cookie');
   const cookies = parseCookies(cookieHeader);
   const token = cookies['ai_assistant_token'];
-  const payload = token ? await getUserFromRequest({ headers: { get: (k: string) => k === 'Cookie' ? cookieHeader : null } } as any, env.JWT_SECRET) : null;
+  const payload = token ? await getUserFromRequest({ headers: { get: (k: string) => k.toLowerCase() === 'cookie' ? cookieHeader : null } } as any, env.JWT_SECRET) : null;
   const userId = payload?.user_id;
 
-  // 使用平台 Makers-Conversation-Id 请求头
+  // 使用平台 Makers-Conversation-Id 请求头（大小写无关）
   const conversationId =
-    request.headers['Makers-Conversation-Id'] ||
+    getHeader(request, 'makers-conversation-id') ||
     context.conversation_id ||
     request.query?.conversation_id ||
     generateId();
