@@ -76,15 +76,34 @@ function tracerSpan(ctx: ChatContext, name: string, attrs?: Record<string, unkno
  * - context.store 是 EdgeOne 平台能力，用于可观测性和框架适配
  * - 两者都要写入，确保 Conversations API 和平台能力都正常工作
  */
+/**
+ * 保存消息到平台内置 store（Agent 对话存储）
+ *
+ * EdgeOne Agent 运行时使用 context.store（平台内置），而非 KV。
+ * 官方文档：https://pages.edgeone.ai/zh/document/agents-conversation-storage
+ *
+ * context.store 提供 appendMessage、getMessages、listConversations 等完整 API，
+ * 零配置，Agent 运行时自动可用。
+ */
 async function saveMessage(ctx: ChatContext, msg: { role: string; content: string; id?: string }) {
-  // 所有操作前先检查是否已被中断
   if (ctx.signal?.aborted) return;
 
-  const msgId = msg.id || generateId();
+  // 优先写入平台内置对话存储 context.store
+  if (ctx.store?.appendMessage) {
+    try {
+      await ctx.store.appendMessage({
+        conversationId: ctx.conversationId,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+      });
+      return;
+    } catch (e) { ctx.traceLog.push(`[store] appendMessage 失败: ${(e as Error).message}`); }
+  }
 
-  // 写入 KV（Agent 运行时可能没有 KV 绑定，降级到 store）
+  // 降级：写入 KV
   if (ctx.kv?.kv) {
     try {
+      const msgId = msg.id || generateId();
       await ctx.kv.createMessage({
         id: msgId,
         conversation_id: ctx.conversationId,
@@ -94,26 +113,35 @@ async function saveMessage(ctx: ChatContext, msg: { role: string; content: strin
       });
     } catch (e) { ctx.traceLog.push(`[kv] saveMessage 失败: ${(e as Error).message}`); }
   }
-
-  // 写入平台 store
-  if (ctx.store?.addMessage) {
-    try { await ctx.store.addMessage({ role: msg.role, content: msg.content }); } catch { /* ignore */ }
-  } else if (ctx.store?.set) {
-    try { await ctx.store.set(`msg:${msgId}`, JSON.stringify(msg)); } catch { /* ignore */ }
-  }
 }
 
 /**
  * 获取历史消息（统一从 KV 读取）
  */
+/**
+ * 从平台内置 store 加载对话历史
+ */
 async function loadHistory(ctx: ChatContext): Promise<{ role: string; content: string }[]> {
-  if (!ctx.kv?.kv) return [];
-  try {
-    return (await ctx.kv.listConversationMessages(ctx.conversationId)).map(m => ({
-      role: m.role,
-      content: m.content,
-    }));
-  } catch { return []; }
+  // 优先从平台内置 store 读取
+  if (ctx.store?.getMessages) {
+    try {
+      const result = await ctx.store.getMessages({ conversationId: ctx.conversationId, limit: 100 });
+      const messages = result?.items || result?.messages || result || [];
+      const items: any[] = Array.isArray(messages) ? messages : [];
+      return items.map((m: any) => ({ role: m.role, content: m.content }));
+    } catch { /* 降级到 KV */ }
+  }
+
+  // 降级：从 KV 读取
+  if (ctx.kv?.kv) {
+    try {
+      return (await ctx.kv.listConversationMessages(ctx.conversationId)).map(m => ({
+        role: m.role,
+        content: m.content,
+      }));
+    } catch { /* ignore */ }
+  }
+  return [];
 }
 
 // ==================== 系统提示词 ====================
