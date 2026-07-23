@@ -1,0 +1,6 @@
+{
+  "enabledPlugins": {
+    "agent-browser@codebuddy-plugins-official": true,
+    "superpowers-chrome@codebuddy-plugins-official": true
+  }
+}
