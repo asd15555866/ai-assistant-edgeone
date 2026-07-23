@@ -91,6 +91,7 @@ const PREFIX = {
   userConversations: 'user_conv:',
   conversationMessages: 'conv_msg:',
   taskExecutions: 'task_exec:',
+  tokenUsage: 'token_usage:',
 };
 
 export class KVStore {
@@ -514,6 +515,90 @@ export class KVStore {
         result[s.key] = s.value;
       }
     }
+    return result;
+  }
+
+  // ==================== Token 用量统计 ====================
+
+  /**
+   * 记录单次 LLM 调用的 token 用量到当天
+   * @param usage OpenAI 标准的 usage 字段 { prompt_tokens, completion_tokens, total_tokens }
+   * @param model 调用的模型名（用于按模型拆分）
+   */
+  async recordTokenUsage(usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }, model?: string): Promise<void> {
+    if (!usage || typeof usage.total_tokens !== 'number') return;
+
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const key = PREFIX.tokenUsage + today;
+
+    const raw = await this.kv.get(key);
+    const current = raw ? JSON.parse(raw) : {
+      date: today,
+      prompt_tokens: 0,
+      completion_tokens: 0,
+      total_tokens: 0,
+      count: 0,
+      byModel: {} as Record<string, number>,
+    };
+
+    current.prompt_tokens += usage.prompt_tokens || 0;
+    current.completion_tokens += usage.completion_tokens || 0;
+    current.total_tokens += usage.total_tokens || 0;
+    current.count += 1;
+    if (model) {
+      current.byModel[model] = (current.byModel[model] || 0) + (usage.total_tokens || 0);
+    }
+    current.updated_at = Date.now();
+
+    await this.kv.put(key, JSON.stringify(current));
+  }
+
+  /**
+   * 获取某天的 token 用量
+   */
+  async getTokenUsage(date: string): Promise<{ date: string; prompt_tokens: number; completion_tokens: number; total_tokens: number; count: number; byModel: Record<string, number> } | null> {
+    const raw = await this.kv.get(PREFIX.tokenUsage + date);
+    return raw ? JSON.parse(raw) : null;
+  }
+
+  /**
+   * 聚合某日期范围内的 token 用量
+   */
+  async aggregateTokenUsage(startDate: string, endDate: string): Promise<{
+    days: Array<{ date: string; total_tokens: number; count: number }>;
+    total: { prompt_tokens: number; completion_tokens: number; total_tokens: number; count: number };
+    byModel: Record<string, number>;
+  }> {
+    const result = {
+      days: [] as Array<{ date: string; total_tokens: number; count: number }>,
+      total: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, count: 0 },
+      byModel: {} as Record<string, number>,
+    };
+
+    const start = new Date(startDate + 'T00:00:00Z').getTime();
+    const end = new Date(endDate + 'T23:59:59Z').getTime();
+
+    const keys = await this._listAllKeys(PREFIX.tokenUsage);
+    for (const key of keys) {
+      const date = key.replace(PREFIX.tokenUsage, '');
+      const ts = new Date(date + 'T00:00:00Z').getTime();
+      if (ts < start || ts > end) continue;
+
+      const raw = await this.kv.get(key);
+      if (!raw) continue;
+      const day = JSON.parse(raw);
+
+      result.days.push({ date, total_tokens: day.total_tokens, count: day.count });
+      result.total.prompt_tokens += day.prompt_tokens || 0;
+      result.total.completion_tokens += day.completion_tokens || 0;
+      result.total.total_tokens += day.total_tokens || 0;
+      result.total.count += day.count || 0;
+      for (const [m, t] of Object.entries(day.byModel || {})) {
+        result.byModel[m] = (result.byModel[m] || 0) + (t as number);
+      }
+    }
+
+    result.days.sort((a, b) => a.date.localeCompare(b.date));
     return result;
   }
 

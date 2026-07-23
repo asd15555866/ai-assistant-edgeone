@@ -32,6 +32,27 @@ export async function onRequestGet(context: any) {
   const trend = await kv.getRecentExecutions(7);
   const activeTasks = (await kv.listTasks({ status: 'active' })).length;
 
-  log(SRC, { method: 'GET', path: '/api/stats', userId: payload.user_id, totalExecutions, activeTasks, successRate, dur: Date.now() - t0 });
-  return json(200, { totalExecutions, successCount, successRate, activeTasks, trend });
+  // Token 用量：本月
+  const monthStartDate = new Date(monthStartTs).toISOString().slice(0, 10);
+  const todayDate = new Date(now).toISOString().slice(0, 10);
+  const monthUsage = await kv.aggregateTokenUsage(monthStartDate, todayDate);
+
+  // 当天用量
+  const todayUsage = await kv.getTokenUsage(todayDate);
+
+  log(SRC, { method: 'GET', path: '/api/stats', userId: payload.user_id, totalExecutions, activeTasks, successRate, monthTokens: monthUsage.total.total_tokens, dur: Date.now() - t0 });
+  return json(200, {
+    totalExecutions, successCount, successRate, activeTasks, trend,
+    tokenUsage: {
+      today: todayUsage ? {
+        total_tokens: todayUsage.total_tokens,
+        prompt_tokens: todayUsage.prompt_tokens,
+        completion_tokens: todayUsage.completion_tokens,
+        count: todayUsage.count,
+      } : { total_tokens: 0, prompt_tokens: 0, completion_tokens: 0, count: 0 },
+      month: monthUsage.total,
+      days: monthUsage.days,
+      byModel: monthUsage.byModel,
+    },
+  });
 }

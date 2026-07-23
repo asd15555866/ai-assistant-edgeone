@@ -42,6 +42,8 @@ type ToolResult = {
 type LLMResponse = {
   content: string;
   toolCalls?: ToolCall[];
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+  model?: string;
 };
 
 type ChatContext = {
@@ -593,6 +595,19 @@ function parseCronDescription(desc: string): string {
   return '* * * * *';
 }
 
+// ==================== Token 用量记录 ====================
+
+/**
+ * 记录单次 LLM 调用的 token 用量
+ * 静默失败，不影响主流程
+ */
+async function recordUsage(kv: KVStore | undefined, usage: LLMResponse['usage'], model: string | undefined) {
+  if (!kv?.recordTokenUsage || !usage) return;
+  try {
+    await kv.recordTokenUsage(usage, model);
+  } catch { /* token 统计失败不影响主流程 */ }
+}
+
 // ==================== LLM 调用 ====================
 
 /**
@@ -672,6 +687,8 @@ async function callLLM(
       if (!reader) throw new Error('无法读取响应流');
       const decoder = new TextDecoder();
       let fullContent = '';
+      // 流式响应中最后一个 chunk 通常包含 usage（OpenAI 标准）
+      let lastUsage: any = undefined;
 
       // 按 index 累加 tool_calls delta
       const toolCallsAcc: Record<number, { id: string; name: string; arguments: string }> = {};
@@ -690,25 +707,30 @@ async function callLLM(
           try {
             const parsed = JSON.parse(data);
             const delta = parsed.choices?.[0]?.delta;
-            if (!delta) continue;
+            if (delta) {
+              // 文本内容：逐字推送
+              if (delta.content) {
+                fullContent += delta.content;
+                onStream(delta.content);
+              }
 
-            // 文本内容：逐字推送
-            if (delta.content) {
-              fullContent += delta.content;
-              onStream(delta.content);
+              // 工具调用：按 index 累加
+              if (delta.tool_calls) {
+                for (const tc of delta.tool_calls) {
+                  const idx = tc.index ?? 0;
+                  if (!toolCallsAcc[idx]) {
+                    toolCallsAcc[idx] = { id: '', name: '', arguments: '' };
+                  }
+                  if (tc.id) toolCallsAcc[idx].id = tc.id;
+                  if (tc.function?.name) toolCallsAcc[idx].name += tc.function.name;
+                  if (tc.function?.arguments) toolCallsAcc[idx].arguments += tc.function.arguments;
+                }
+              }
             }
 
-            // 工具调用：按 index 累加
-            if (delta.tool_calls) {
-              for (const tc of delta.tool_calls) {
-                const idx = tc.index ?? 0;
-                if (!toolCallsAcc[idx]) {
-                  toolCallsAcc[idx] = { id: '', name: '', arguments: '' };
-                }
-                if (tc.id) toolCallsAcc[idx].id = tc.id;
-                if (tc.function?.name) toolCallsAcc[idx].name += tc.function.name;
-                if (tc.function?.arguments) toolCallsAcc[idx].arguments += tc.function.arguments;
-              }
+            // 流式响应尾部可能带 usage（放在 choices 之外）
+            if (parsed.usage) {
+              lastUsage = parsed.usage;
             }
           } catch {
             // 忽略单行解析错误
@@ -725,22 +747,36 @@ async function callLLM(
           return { name: tc.name, arguments: args };
         });
 
-      return { content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
+      return {
+        content: fullContent,
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        usage: lastUsage ? {
+          prompt_tokens: lastUsage.prompt_tokens || 0,
+          completion_tokens: lastUsage.completion_tokens || 0,
+          total_tokens: lastUsage.total_tokens || 0,
+        } : undefined,
+        model,
+      };
     }
 
     // ===== 非流式模式 =====
     const data = await response.json();
     const choice = data.choices?.[0];
+    const usage = data.usage ? {
+      prompt_tokens: data.usage.prompt_tokens || 0,
+      completion_tokens: data.usage.completion_tokens || 0,
+      total_tokens: data.usage.total_tokens || 0,
+    } : undefined;
 
     if (choice?.message?.tool_calls) {
       const toolCalls: ToolCall[] = choice.message.tool_calls.map((tc: any) => ({
         name: tc.function.name,
         arguments: JSON.parse(tc.function.arguments),
       }));
-      return { content: choice.message.content || '', toolCalls };
+      return { content: choice.message.content || '', toolCalls, usage, model };
     }
 
-    return { content: choice?.message?.content || '' };
+    return { content: choice?.message?.content || '', usage, model };
   } catch (error) {
     if ((error as Error).name === 'AbortError') {
       throw new Error('请求已取消');
@@ -1015,7 +1051,8 @@ async function handleJSONResponse(message: string, ctx: ChatContext) {
 
   try {
     // 调用 LLM（非流式）
-    const { content, toolCalls } = await callLLM(llmMessages, ctx.env, ctx.kv);
+    const { content, toolCalls, usage, model } = await callLLM(llmMessages, ctx.env, ctx.kv);
+    recordUsage(ctx.kv, usage, model);
 
     let finalResponse = content;
     let intermediateStates: IntermediateState[] = [];
@@ -1053,7 +1090,8 @@ async function handleJSONResponse(message: string, ctx: ChatContext) {
         { role: 'user', content: `工具执行结果:\n${toolResults.join('\n')}\n请基于这些结果给用户一个完整的回复。` },
       ];
 
-      const { content: finalContent } = await callLLM(finalMessages, ctx.env, ctx.kv);
+      const { content: finalContent, usage: usage2, model: model2 } = await callLLM(finalMessages, ctx.env, ctx.kv);
+      recordUsage(ctx.kv, usage2, model2);
       finalResponse = finalContent;
     }
 
@@ -1153,7 +1191,7 @@ async function handleSSEStream(message: string, ctx: ChatContext) {
 
         if (checkAborted()) { controller.close(); return; }
 
-        const { content: initialContent, toolCalls } = await callLLM(
+        const { content: initialContent, toolCalls, usage, model } = await callLLM(
           llmMessages,
           ctx.env,
           ctx.kv,
@@ -1163,6 +1201,7 @@ async function handleSSEStream(message: string, ctx: ChatContext) {
           },
           signal
         );
+        if (!aborted) recordUsage(ctx.kv, usage, model);
 
         if (checkAborted()) { controller.close(); return; }
 
@@ -1221,7 +1260,7 @@ async function handleSSEStream(message: string, ctx: ChatContext) {
 
           sendSSE('state', JSON.stringify({ type: 'thinking', message: '正在生成最终回复...' }));
 
-          const { content: finalContent } = await callLLM(
+          const { content: finalContent, usage: usage2, model: model2 } = await callLLM(
             finalMessages,
             ctx.env,
             ctx.kv,
@@ -1231,6 +1270,7 @@ async function handleSSEStream(message: string, ctx: ChatContext) {
             },
             signal
           );
+          if (!aborted) recordUsage(ctx.kv, usage2, model2);
 
           fullContent = finalContent;
         } else {

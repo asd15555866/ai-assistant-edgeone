@@ -30,6 +30,12 @@ type StatsData = {
   successRate: number;
   activeTasks: number;
   trend: Array<{ date: string; total: number; success: number; failed: number }>;
+  tokenUsage?: {
+    today: { total_tokens: number; prompt_tokens: number; completion_tokens: number; count: number };
+    month: { prompt_tokens: number; completion_tokens: number; total_tokens: number; count: number };
+    days: Array<{ date: string; total_tokens: number; count: number }>;
+    byModel: Record<string, number>;
+  };
 };
 
 type ExecutionLog = {
@@ -149,6 +155,63 @@ function StatsTab() {
           </div>
         ))}
       </div>
+
+      {/* Token 用量卡片 */}
+      {stats.tokenUsage && (
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold text-surface-900">模型 Token 用量</h3>
+            <span className="text-xs text-surface-500">数据来源：每次 LLM 调用响应</span>
+          </div>
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="bg-amber-50 rounded-lg p-3">
+              <div className="text-xs text-surface-500 mb-1">今日 Token</div>
+              <div className="text-xl font-bold text-amber-600">
+                {stats.tokenUsage.today.total_tokens.toLocaleString()}
+              </div>
+              <div className="text-xs text-surface-400 mt-1">
+                调用 {stats.tokenUsage.today.count} 次
+              </div>
+            </div>
+            <div className="bg-orange-50 rounded-lg p-3">
+              <div className="text-xs text-surface-500 mb-1">本月 Token</div>
+              <div className="text-xl font-bold text-orange-600">
+                {stats.tokenUsage.month.total_tokens.toLocaleString()}
+              </div>
+              <div className="text-xs text-surface-400 mt-1">
+                调用 {stats.tokenUsage.month.count} 次
+              </div>
+            </div>
+            <div className="bg-yellow-50 rounded-lg p-3">
+              <div className="text-xs text-surface-500 mb-1">本月输入/输出</div>
+              <div className="text-xl font-bold text-yellow-600">
+                {stats.tokenUsage.month.prompt_tokens.toLocaleString()} / {stats.tokenUsage.month.completion_tokens.toLocaleString()}
+              </div>
+              <div className="text-xs text-surface-400 mt-1">
+                prompt / completion
+              </div>
+            </div>
+          </div>
+          {/* 按模型归类 */}
+          {Object.keys(stats.tokenUsage.byModel).length > 0 && (
+            <details className="text-sm">
+              <summary className="cursor-pointer text-surface-600 hover:text-surface-900">
+                按模型拆分（{Object.keys(stats.tokenUsage.byModel).length} 个）
+              </summary>
+              <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                {Object.entries(stats.tokenUsage.byModel)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([model, tokens]) => (
+                    <div key={model} className="flex justify-between py-1 px-2 hover:bg-surface-50 rounded">
+                      <span className="font-mono text-xs">{model}</span>
+                      <span className="text-xs text-surface-600">{tokens.toLocaleString()}</span>
+                    </div>
+                  ))}
+              </div>
+            </details>
+          )}
+        </div>
+      )}
 
       {/* 趋势图 */}
       <div className="card p-4">
