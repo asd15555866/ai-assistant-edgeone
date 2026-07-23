@@ -616,8 +616,8 @@ async function callLLM(
     stream: !!onStream,
     tools: TOOL_DEFINITIONS,
     tool_choice: 'auto' as const,
-    max_tokens: 4096,
-    temperature: 0.7,
+    max_tokens: 1024,
+    temperature: 0.9,
   };
 
   const fetchSignal = abortSignal || createTimeoutSignal(60000);
