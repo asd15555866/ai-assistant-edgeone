@@ -118,18 +118,24 @@ export class KVStore {
 
     do {
       // EdgeOne KV 要求 cursor 必须是 string，不能是 undefined
-      // 第一次传 null（空字符串），后续用返回的 cursor
-      const result = await this.kv.list({ prefix, cursor: cursor || '' });
-      for (const item of result.keys) {
-        allKeys.push(item.name);
+      // 第一次传空字符串，后续用返回的 cursor
+      const result: any = await this.kv.list({ prefix, cursor: cursor || '' });
+      // 兼容多种返回结构：Cloudflare Workers、EdgeOne 都有差异
+      let keys: any[] = result?.keys || result?.data || [];
+      // 如果是 Map/Object 的形式（如 { 'user:xxx': {...} }）
+      if (!Array.isArray(keys) && typeof keys === 'object' && keys !== null) {
+        keys = Object.keys(keys);
       }
-      cursor = result.cursor || null;
-      complete = result.complete;
+      for (const item of keys) {
+        // 兼容两种格式：{ name: 'xxx' } 或直接的字符串 'xxx'
+        const name = typeof item === 'string' ? item : (item?.name || item?.key);
+        if (name) allKeys.push(name);
+      }
+      // 兼容 complete / list_complete 两种字段名
+      cursor = (result?.cursor || null) as string | null;
+      complete = result?.complete ?? result?.list_complete ?? true;
       pageCount++;
-      // 安全保护：如果 KV 返回 complete=false 但 cursor 为空，强制退出
-      if (!complete && !cursor) {
-        break;
-      }
+      if (!complete && !cursor) break;
       if (pageCount >= MAX_PAGES) {
         console.warn(`[KV] _listAllKeys 达到最大页数限制(${MAX_PAGES})，prefix=${prefix}`);
         break;
