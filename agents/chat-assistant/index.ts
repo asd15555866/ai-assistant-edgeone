@@ -593,14 +593,14 @@ async function callLLM(
   abortSignal?: AbortSignal
 ): Promise<LLMResponse> {
   // 动态获取模型名
-  let model = '@makers/deepseek-v4-flash';
+  let model = '@makers/deepseek-v4-pro';
   try {
     if (kv?.getSetting) {
       const setting = await kv.getSetting('ai_model');
       if (setting) model = setting;
     }
   } catch { /* KV 读取失败用兜底 */ }
-  model = model || env.AI_MODEL || '@makers/deepseek-v4-flash';
+  model = model || env.AI_MODEL || '@makers/deepseek-v4-pro';
 
   // API 地址
   const baseUrl = env.AI_GATEWAY_BASE_URL || 'https://api.deepseek.com';
@@ -750,7 +750,7 @@ const TOOL_DEFINITIONS = [
     type: 'function' as const,
     function: {
       name: 'web_search',
-      description: '联网搜索信息，如查询天气、新闻、百科知识等实时信息',
+      description: 'Search the web for real-time information: news, weather, prices, current events. Examples: "今天合肥天气", "iPhone 16 价格". NOT for math calculations or data processing.',
       parameters: {
         type: 'object',
         properties: {
@@ -779,7 +779,7 @@ const TOOL_DEFINITIONS = [
     type: 'function' as const,
     function: {
       name: 'browser_automation',
-      description: '控制浏览器执行自动化操作，如登录网站、点击按钮、截图、抓取页面内容',
+      description: 'Control a browser ONLY when user wants to interact with a specific website: login, click, fill forms, screenshot, scrape page content. Examples: "登录百度", "截取 example.com 首页", "点页面上的提交按钮". DO NOT use this for math, calculations, or simple text questions.',
       parameters: {
         type: 'object',
         properties: {
