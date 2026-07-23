@@ -524,9 +524,9 @@ function SettingsTab() {
             <>
               <input
                 className="input-field"
-                value={settings.ai_model || 'deepseek/deepseek-chat'}
+                value={settings.ai_model || '@makers/deepseek-v4-flash'}
                 onChange={(e) => setSettings({ ...settings, ai_model: e.target.value })}
-                placeholder="deepseek/deepseek-chat"
+                placeholder="@makers/deepseek-v4-flash"
               />
               <p className="text-xs text-gray-400 mt-1">
                 {modelsInfo.source === 'none' && '⚠️ 未配置网关 API Key，请到 EdgeOne 控制台 → Models 添加'}
