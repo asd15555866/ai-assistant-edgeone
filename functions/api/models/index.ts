@@ -32,34 +32,93 @@ const BUILTIN_MODELS = [
 
 // 自费厂商模型：每个厂商选一个最便宜的代表模型做探测
 // 探测成功的厂商 → 展开显示该厂商的全部模型
+// 模型名以 EdgeOne 官方文档为准：https://pages.edgeone.ai/zh/document/models-vendors-overview
 const VENDOR_PROBES: Record<string, { probe: string; models: string[] }> = {
   'OpenAI': {
-    probe: 'openai/gpt-4o-mini',
-    models: ['openai/gpt-4o', 'openai/gpt-4o-mini', 'openai/gpt-4-turbo', 'openai/gpt-3.5-turbo'],
+    probe: 'openai/gpt-5.4-nano',
+    models: [
+      'openai/gpt-5.6-sol',
+      'openai/gpt-5.6-terra',
+      'openai/gpt-5.6-luna',
+      'openai/gpt-5.5',
+      'openai/gpt-5.5-pro',
+      'openai/gpt-5.4',
+      'openai/gpt-5.4-pro',
+      'openai/gpt-5.4-mini',
+      'openai/gpt-5.4-nano',
+    ],
   },
   'Anthropic': {
-    probe: 'anthropic/claude-3-5-haiku-latest',
-    models: ['anthropic/claude-3-5-sonnet-latest', 'anthropic/claude-3-5-haiku-latest', 'anthropic/claude-3-opus-latest'],
+    probe: 'anthropic/claude-haiku-4-5-20251001',
+    models: [
+      'anthropic/claude-fable-5',
+      'anthropic/claude-sonnet-5',
+      'anthropic/claude-opus-4-8',
+      'anthropic/claude-opus-4-7',
+      'anthropic/claude-opus-4-6',
+      'anthropic/claude-sonnet-4-6',
+      'anthropic/claude-opus-4-5-20251101',
+      'anthropic/claude-haiku-4-5-20251001',
+      'anthropic/claude-sonnet-4-5-20250929',
+    ],
   },
   'Google': {
-    probe: 'google/gemini-1.5-flash-latest',
-    models: ['google/gemini-1.5-pro-latest', 'google/gemini-1.5-flash-latest'],
+    probe: 'google/gemini-2.5-flash-lite',
+    models: [
+      'google/gemini-3.5-flash',
+      'google/gemini-3.1-pro-preview',
+      'google/gemini-3.1-flash-lite',
+      'google/gemini-3-flash-preview',
+      'google/gemini-2.5-pro',
+      'google/gemini-2.5-flash',
+      'google/gemini-2.5-flash-lite',
+    ],
   },
   'DeepSeek': {
-    probe: 'deepseek/deepseek-chat',
-    models: ['deepseek/deepseek-chat', 'deepseek/deepseek-reasoner'],
+    probe: 'deepseek/deepseek-v4-flash',
+    models: [
+      'deepseek/deepseek-v4-flash',
+      'deepseek/deepseek-v4-pro',
+    ],
+  },
+  'MiniMax': {
+    probe: 'minimax/minimax-m2.5-highspeed',
+    models: [
+      'minimax/minimax-m3',
+      'minimax/minimax-m2.7',
+      'minimax/minimax-m2.7-highspeed',
+      'minimax/minimax-m2.5',
+      'minimax/minimax-m2.5-highspeed',
+    ],
   },
   '混元': {
-    probe: 'hunyuan/hunyuan-standard',
-    models: ['hunyuan/hunyuan-pro', 'hunyuan/hunyuan-standard'],
+    probe: 'hunyuan/hy3-preview',
+    models: [
+      'hunyuan/hy3',
+      'hunyuan/hy3-preview',
+      'hunyuan/hunyuan-role-latest',
+    ],
   },
   '智谱': {
     probe: 'zai/glm-4.7-flashx',
-    models: ['zai/glm-5.1', 'zai/glm-5', 'zai/glm-5-turbo', 'zai/glm-4.7', 'zai/glm-4.7-flashx', 'zai/glm-4.6'],
+    models: [
+      'zai/glm-5.2',
+      'zai/glm-5.1',
+      'zai/glm-5',
+      'zai/glm-4.7',
+      'zai/glm-4.7-flashx',
+      'zai/glm-4.6',
+    ],
   },
   '月之暗面': {
-    probe: 'moonshot/moonshot-v1-8k',
-    models: ['moonshot/moonshot-v1-8k', 'moonshot/moonshot-v1-32k', 'moonshot/moonshot-v1-128k'],
+    probe: 'moonshot/kimi-k2.6',
+    models: [
+      'moonshot/kimi-k3',
+      'moonshot/kimi-k2.7-code',
+      'moonshot/kimi-k2.7-code-highspeed',
+      'moonshot/kimi-k2.6',
+      'moonshot/kimi-k2.5',
+    ],
   },
 };
 

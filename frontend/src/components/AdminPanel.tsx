@@ -641,14 +641,14 @@ function SettingsTab() {
 function detectProvider(modelName: string): string {
   const m = modelName.toLowerCase();
   if (m.startsWith('@makers/')) return 'EdgeOne 内置';
-  if (m.startsWith('gpt-') || m.includes('openai') || m.startsWith('o1-') || m.startsWith('o3-')) return 'OpenAI';
-  if (m.startsWith('claude-')) return 'Anthropic';
-  if (m.startsWith('gemini-') || m.startsWith('gemma-')) return 'Google';
-  if (m.startsWith('deepseek-')) return 'DeepSeek';
-  if (m.startsWith('zai/') || m.includes('glm') || m.startsWith('zaigl') || m.startsWith('chatglm')) return '智谱';
-  if (m.startsWith('moonshot-') || m.startsWith('kimi-')) return '月之暗面';
-  if (m.startsWith('hunyuan-')) return '腾讯混元';
-  if (m.startsWith('abab') || m.startsWith('minimax-') || m.startsWith('speech-')) return 'MiniMax';
+  if (m.startsWith('openai/') || m.startsWith('gpt-') || m.startsWith('o1-') || m.startsWith('o3-')) return 'OpenAI';
+  if (m.startsWith('anthropic/') || m.startsWith('claude-')) return 'Anthropic';
+  if (m.startsWith('google/') || m.startsWith('gemini-') || m.startsWith('gemma-')) return 'Google';
+  if (m.startsWith('deepseek/') || m.startsWith('deepseek-')) return 'DeepSeek';
+  if (m.startsWith('zai/') || m.startsWith('zhipu/') || m.includes('glm') || m.startsWith('zaigl') || m.startsWith('chatglm')) return '智谱';
+  if (m.startsWith('moonshot/') || m.startsWith('kimi-')) return '月之暗面';
+  if (m.startsWith('hunyuan/') || m.startsWith('hunyuan-') || m.startsWith('hy3')) return '腾讯混元';
+  if (m.startsWith('minimax/') || m.startsWith('minimax-')) return 'MiniMax';
   if (m.startsWith('doubao-') || m.startsWith('ep-')) return '字节豆包';
   if (m.startsWith('qwen-') || m.startsWith('qwq-')) return '通义千问';
   return '其他';
