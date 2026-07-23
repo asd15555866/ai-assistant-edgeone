@@ -125,15 +125,17 @@ export default function App() {
   );
 }
 
-// ==================== 登录页面（DeepSeek 风格） ====================
+// ==================== 登录/注册页面（DeepSeek 风格） ====================
 
 function AuthPage({ onLogin, onRegister, error }: {
   onLogin: (u: string, p: string) => Promise<boolean>;
   onRegister: (u: string, p: string) => Promise<boolean>;
   error: string | null;
 }) {
+  const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -141,78 +143,56 @@ function AuthPage({ onLogin, onRegister, error }: {
     e.preventDefault();
     setLocalError(null);
     if (!username.trim() || !password.trim()) { setLocalError('请填写用户名和密码'); return; }
+    if (!isLogin && password !== confirmPassword) { setLocalError('两次密码不一致'); return; }
     setSubmitting(true);
-    const success = await onLogin(username, password);
+    const success = isLogin ? await onLogin(username, password) : await onRegister(username, password);
     setSubmitting(false);
-    if (!success && !error) setLocalError('登录失败');
-  };
-
-  // 一键填入管理员账号
-  const fillAdmin = () => {
-    setUsername('admin');
-    setPassword('admin123');
+    if (!success && !error) setLocalError(isLogin ? '登录失败' : '注册失败');
   };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-white px-4">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="text-center mb-10">
           <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg shadow-blue-200">
             <Sparkles size={28} className="text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">AI 智能助手</h1>
-          <p className="text-sm text-gray-500 mt-1.5">登录你的账号</p>
+          <p className="text-sm text-gray-500 mt-1.5">
+            {isLogin ? '登录你的账号' : '创建新账号'}
+          </p>
         </div>
 
-        {/* 表单 */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="input-field"
-              placeholder="用户名"
-              autoComplete="username"
-            />
+            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
+              className="input-field" placeholder="用户名" autoComplete="username" />
           </div>
           <div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input-field"
-              placeholder="密码"
-              autoComplete="current-password"
-            />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+              className="input-field" placeholder="密码" autoComplete={isLogin ? 'current-password' : 'new-password'} />
           </div>
-
+          {!isLogin && (
+            <div>
+              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                className="input-field" placeholder="确认密码" autoComplete="new-password" />
+            </div>
+          )}
           {(localError || error) && (
             <div className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2.5">{localError || error}</div>
           )}
-
           <button type="submit" disabled={submitting} className="btn-primary w-full text-base py-3">
-            {submitting ? <Loader2 size={18} className="animate-spin mx-auto" /> : '登录'}
+            {submitting ? <Loader2 size={18} className="animate-spin mx-auto" /> : isLogin ? '登录' : '注册'}
           </button>
-
-          {/* 管理员账号提示（注册功能已临时关闭） */}
-          <div className="text-center pt-3">
-            <button type="button" onClick={fillAdmin}
-              className="text-xs text-gray-400 hover:text-blue-600 transition-colors">
-              使用默认管理员账号登录（admin / admin123）
+          <div className="text-center pt-2">
+            <button type="button" onClick={() => { setIsLogin(!isLogin); setLocalError(null); }}
+              className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+              {isLogin ? '还没有账号？去注册' : '已有账号？去登录'}
             </button>
           </div>
         </form>
-
-        <div className="mt-8 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
-          <strong>提示：</strong>注册功能已临时关闭，请使用管理员账号登录。
-        </div>
       </div>
-
-      <div className="mt-auto pt-16 pb-6 text-xs text-gray-300">
-        AI 智能助手 v1.0
-      </div>
+      <div className="mt-auto pt-16 pb-6 text-xs text-gray-300">AI 智能助手 v1.0</div>
     </div>
   );
 }

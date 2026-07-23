@@ -25,15 +25,9 @@ export async function onRequestGet(context: any) {
   const t0 = Date.now();
 
   if (matchAuthPath(pathname, '/auth/me')) {
+    const kv = new KVStore(env.AI_ASSISTANT_KV);
     const payload = await getUserFromRequest(request, env.JWT_SECRET);
     if (!payload) return json(401, { error: '未登录' });
-
-    // 硬编码管理员
-    if (payload.user_id === HARDCODED_ADMIN.id) {
-      return json(200, { id: HARDCODED_ADMIN.id, username: HARDCODED_ADMIN.username, role: HARDCODED_ADMIN.role });
-    }
-
-    const kv = new KVStore(env.AI_ASSISTANT_KV);
     const user = await kv.getUser(payload.user_id);
     if (!user) return json(404, { error: '用户不存在' });
     log(SRC, { method: 'GET', path: pathname, userId: user.id, status: 200, dur: Date.now() - t0 });
@@ -68,6 +62,7 @@ export async function onRequestPost(context: any) {
 }
 
 async function handleLogin(request: Request, env: any) {
+  const kv = new KVStore(env.AI_ASSISTANT_KV);
   const t0 = Date.now();
   try {
     const { username, password } = await request.json();
@@ -76,26 +71,6 @@ async function handleLogin(request: Request, env: any) {
       return json(400, { error: '用户名和密码不能为空' });
     }
 
-    // ===== 硬编码管理员账号（绕过 KV 依赖，临时方案）=====
-    if (HARDCODED_ADMIN.username === username && HARDCODED_ADMIN.password === password) {
-      const token = await createJWT(
-        { user_id: HARDCODED_ADMIN.id, username: HARDCODED_ADMIN.username, role: HARDCODED_ADMIN.role },
-        env.JWT_SECRET
-      );
-      log(SRC, { method: 'POST', path: '/api/auth/login', userId: HARDCODED_ADMIN.id, status: 200, msg: 'hardcoded admin' });
-      const response = json(200, {
-        user: { id: HARDCODED_ADMIN.id, username: HARDCODED_ADMIN.username, role: HARDCODED_ADMIN.role },
-        token,
-      });
-      response.headers.append(
-        'Set-Cookie',
-        `ai_assistant_token=${token}; HttpOnly; Path=/; Max-Age=604800; SameSite=Lax${env.NODE_ENV === 'production' ? '; Secure' : ''}`
-      );
-      return response;
-    }
-
-    // ===== 正常 KV 登录 =====
-    const kv = new KVStore(env.AI_ASSISTANT_KV);
     const user = await kv.getUserByUsername(username);
     if (!user) {
       log(SRC, { method: 'POST', path: '/api/auth/login', status: 401, msg: 'user not found', username, dur: Date.now() - t0 });
@@ -134,24 +109,51 @@ async function handleLogin(request: Request, env: any) {
   }
 }
 
-/**
- * 硬编码管理员账号
- *
- * 用途：当 KV 命名空间未绑定或出错时，仍允许管理员登录系统。
- * 这是一个临时方案，等 KV 绑定问题排查清楚后应删除。
- *
- * 后续 KV 修复后，可以把管理员账号写入 KV（register 流程的第一个用户就是 admin）。
- */
-const HARDCODED_ADMIN = {
-  id: 'admin-hardcoded',
-  username: 'admin',
-  password: 'admin123',
-  role: 'admin' as const,
-};
-
 async function handleRegister(request: Request, env: any) {
-  // 注册功能已关闭
-  return json(403, { error: '注册功能已关闭，请使用管理员账号登录' });
+  const kv = new KVStore(env.AI_ASSISTANT_KV);
+  const t0 = Date.now();
+  try {
+    const { username, password } = await request.json();
+    if (!username || !password) return json(400, { error: '用户名和密码不能为空' });
+    if (username.length < 2 || username.length > 20) return json(400, { error: '用户名长度应在 2-20 个字符之间' });
+    if (password.length < 6) return json(400, { error: '密码长度至少 6 个字符' });
+
+    const existing = await kv.getUserByUsername(username);
+    if (existing) {
+      log(SRC, { method: 'POST', path: '/api/auth/register', status: 409, msg: 'username exists', username, dur: Date.now() - t0 });
+      return json(409, { error: '用户名已存在' });
+    }
+
+    const existingUsers = await kv.listUsers();
+    const role = existingUsers.length === 0 ? 'admin' : 'user';
+
+    const user: User = {
+      id: generateId(),
+      username,
+      password_hash: await hashPassword(password),
+      role,
+      created_at: Date.now(),
+    };
+    await kv.createUser(user);
+    log(SRC, { method: 'POST', path: '/api/auth/register', userId: user.id, role, status: 201, dur: Date.now() - t0 });
+
+    const token = await createJWT(
+      { user_id: user.id, username: user.username, role: user.role },
+      env.JWT_SECRET
+    );
+    const response = json(201, {
+      user: { id: user.id, username: user.username, role: user.role },
+      token,
+    });
+    response.headers.append(
+      'Set-Cookie',
+      `ai_assistant_token=${token}; HttpOnly; Path=/; Max-Age=604800; SameSite=Lax${env.NODE_ENV === 'production' ? '; Secure' : ''}`
+    );
+    return response;
+  } catch (e) {
+    logError(SRC, { method: 'POST', path: '/api/auth/register', err: (e as Error).message, dur: Date.now() - t0 });
+    return json(500, { error: '注册失败: ' + (e as Error).message });
+  }
 }
 
 /**
