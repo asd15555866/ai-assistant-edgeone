@@ -6,6 +6,7 @@
 import { json } from '../../../_shared/response';
 import { getUserFromRequest } from '../../../_shared/jwt';
 import { log, logError } from '../../../_shared/logger';
+import { createTimeoutSignal } from '../../../_shared/abort';
 
 const SRC = 'models';
 
@@ -36,7 +37,7 @@ export async function onRequestGet(context: any) {
     const response = await fetch(url, {
       method: 'GET',
       headers: { Authorization: `Bearer ${apiKey}` },
-      signal: AbortSignal.timeout(10000),
+      signal: createTimeoutSignal(10000),
     });
 
     if (!response.ok) {

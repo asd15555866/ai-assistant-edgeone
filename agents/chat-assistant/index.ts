@@ -20,6 +20,7 @@
 import { KVStore, Message, Conversation, ScheduledTask, IntermediateState, generateId } from '../../_shared/kv';
 import { getUserFromRequest, parseCookies } from '../../_shared/jwt';
 import { log, logError } from '../../_shared/logger';
+import { createTimeoutSignal } from '../../_shared/abort';
 import { saveBrowserCookies, restoreBrowserCookies, detectLoginChallenge } from '../../_shared/browser-utils';
 
 const SRC = 'agent';
@@ -203,7 +204,7 @@ async function webSearch(query: string, ctx: ChatContext): Promise<ToolResult> {
   try {
     const response = await fetch(
       `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`,
-      { signal: AbortSignal.timeout(15000) }
+      { signal: createTimeoutSignal(15000) }
     );
     tracerSpan(ctx, 'web_search', { status: response.status });
 
@@ -291,7 +292,7 @@ async function sandboxExecute(code: string, language: string): Promise<string> {
       version: language === 'python' ? '3.10.0' : '18.15.0',
       files: [{ content: code }],
     }),
-    signal: AbortSignal.timeout(30000),
+    signal: createTimeoutSignal(30000),
   });
 
   if (!response.ok) {
@@ -630,7 +631,7 @@ async function callLLM(
     temperature: 0.7,
   };
 
-  const fetchSignal = abortSignal || AbortSignal.timeout(60000);
+  const fetchSignal = abortSignal || createTimeoutSignal(60000);
 
   try {
     const response = await fetch(apiUrl, {

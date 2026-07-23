@@ -12,6 +12,7 @@
 
 import { KVStore, KVOpLimiter, ScheduledTask, TaskExecution } from '../../_shared/kv';
 import { log, logError } from '../../_shared/logger';
+import { createTimeoutSignal } from '../../_shared/abort';
 import { saveBrowserCookies, restoreBrowserCookies, detectLoginChallenge } from '../../_shared/browser-utils';
 
 const SRC = 'cron';
@@ -256,7 +257,7 @@ async function executeTaskAction(
       trace.push(`[cron] web_search: ${query}`);
       const response = await fetch(
         `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`,
-        { signal: AbortSignal.timeout(15000) }
+        { signal: createTimeoutSignal(15000) }
       );
       const data = await response.json();
       const summary = data.AbstractText || `搜索「${query}」完成`;
@@ -292,7 +293,7 @@ async function executeTaskAction(
             version: language === 'python' ? '3.10.0' : '18.15.0',
             files: [{ content: code }],
           }),
-          signal: AbortSignal.timeout(30000),
+          signal: createTimeoutSignal(30000),
         });
         const result = await response.json();
         output = result.run?.output || result.run?.stderr || '无输出';
