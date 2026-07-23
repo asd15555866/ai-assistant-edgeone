@@ -23,18 +23,26 @@ export async function onRequestGet(context: any) {
   if (!payload) return json(401, { error: '未登录' });
   const convId = getConvIdFromPath(pathname);
 
-  // 优先用 context.agent.store 读取消息
+  // 尝试从 context.agent.store 读取消息（Blob 存储）
   if (context.agent?.store?.getMessages) {
     try {
       const result = await context.agent.store.getMessages({ conversationId: convId, limit: 500 });
       const messages = result?.items || result?.messages || result || [];
       const items: any[] = Array.isArray(messages) ? messages : [];
-      log(SRC, { method: 'GET', path: pathname, convId, msgCount: items.length, source: 'agent.store', status: 200, dur: Date.now() - t0 });
-      return json(200, {
-        conversation: { id: convId },
-        messages: items.map((m: any) => ({ role: m.role, content: m.content, created_at: m.created_at || m.createdAt })),
-      });
-    } catch (e) { /* 降级到 KV */ }
+      if (items.length > 0) {
+        log(SRC, { method: 'GET', path: pathname, convId, msgCount: items.length, source: 'agent.store', status: 200, dur: Date.now() - t0 });
+        return json(200, {
+          conversation: { id: convId },
+          messages: items.map((m: any) => ({ role: m.role, content: m.content, created_at: m.created_at || m.createdAt })),
+        });
+      }
+      // agent.store 返回空数组 → 降级到 KV 试试
+      log(SRC, { method: 'GET', path: pathname, convId, msgCount: 0, source: 'agent.store.empty', dur: Date.now() - t0 });
+    } catch (e) {
+      log(SRC, { method: 'GET', path: pathname, convId, source: 'agent.store.error', error: (e as Error).message, dur: Date.now() - t0 });
+    }
+  } else {
+    log(SRC, { method: 'GET', path: pathname, convId, source: 'agent.store.unavailable', dur: Date.now() - t0 });
   }
 
   // 降级：从 KV 读取

@@ -107,8 +107,8 @@ function tracerSpan(ctx: ChatContext, name: string, attrs?: Record<string, unkno
 async function saveMessage(ctx: ChatContext, msg: { role: string; content: string; id?: string }) {
   if (ctx.signal?.aborted) return;
 
-  // 双写：同时写入 agent.store 和 KV，确保 Cloud Function 通过任一通道都能读到
-  // 不再「只写一处」——避免 Cloud Function 读 agent.store 失败时拿不到历史
+  // 写入平台内置对话存储 context.store（Blob 存储）
+  // Agent 运行时用 context.store，Cloud Function 通过 context.agent.store 读取
   if (ctx.store?.appendMessage) {
     try {
       await ctx.store.appendMessage({
@@ -117,20 +117,6 @@ async function saveMessage(ctx: ChatContext, msg: { role: string; content: strin
         content: msg.content,
       });
     } catch (e) { ctx.traceLog.push(`[store] appendMessage 失败: ${(e as Error).message}`); }
-  }
-
-  // 同时写入 KV（Cloud Function 对话详情 API 的兜底读取源）
-  if (ctx.kv?.kv) {
-    try {
-      const msgId = msg.id || generateId();
-      await ctx.kv.createMessage({
-        id: msgId,
-        conversation_id: ctx.conversationId,
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-        created_at: Date.now(),
-      });
-    } catch (e) { ctx.traceLog.push(`[kv] saveMessage 失败: ${(e as Error).message}`); }
   }
 }
 
