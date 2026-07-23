@@ -1,16 +1,15 @@
 /**
  * 任务执行记录 API
- *
- * 路径: /api/executions
+ * 路径: GET /api/executions（精确匹配）
  * 鉴权：管理员
+ * 查询参数: ?status=&offset=&limit=
  */
-
 import { KVStore } from '../../../_shared/kv';
 import { json } from '../../../_shared/response';
 import { getUserFromRequest } from '../../../_shared/jwt';
 import { log } from '../../../_shared/logger';
 
-const SRC = 'cloud-functions';
+const SRC = 'executions';
 
 export async function onRequestGet(context: any) {
   const { request, env } = context;

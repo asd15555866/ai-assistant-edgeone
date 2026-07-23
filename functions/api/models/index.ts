@@ -1,14 +1,13 @@
 /**
  * 可用模型列表 API
- *
- * 路径: /api/models
+ * 路径: GET /api/models（精确匹配）
  * 鉴权：管理员
  */
-
+import { json } from '../../../_shared/response';
 import { getUserFromRequest } from '../../../_shared/jwt';
 import { log, logError } from '../../../_shared/logger';
 
-const SRC = 'cloud-functions';
+const SRC = 'models';
 
 export async function onRequestGet(context: any) {
   const { request, env } = context;
@@ -47,7 +46,6 @@ export async function onRequestGet(context: any) {
     }
 
     const data: any = await response.json();
-    // OpenAI 兼容格式：{ data: [{ id: "model-name" }, ...] }
     const models: string[] = (data.data || []).map((m: any) => m.id).filter(Boolean);
 
     log(SRC, { method: 'GET', path: '/api/models', userId: payload.user_id, source: 'gateway', modelCount: models.length, dur: Date.now() - t0 });
@@ -60,11 +58,4 @@ export async function onRequestGet(context: any) {
       message: `调用网关失败: ${(e as Error).message}`,
     });
   }
-}
-
-function json(status: number, data: any) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
 }

@@ -1,16 +1,14 @@
 /**
  * 统计数据 API
- *
- * 路径: /api/stats
+ * 路径: GET /api/stats（精确匹配）
  * 鉴权：管理员
  */
-
 import { KVStore } from '../../../_shared/kv';
 import { json } from '../../../_shared/response';
 import { getUserFromRequest } from '../../../_shared/jwt';
 import { log } from '../../../_shared/logger';
 
-const SRC = 'cloud-functions';
+const SRC = 'stats';
 
 export async function onRequestGet(context: any) {
   const { request, env } = context;

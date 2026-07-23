@@ -1,16 +1,14 @@
 /**
  * 系统设置 API
- *
- * 路径: /api/settings
+ * 路径: GET/PUT /api/settings（精确匹配）
  * 鉴权：管理员
  */
-
 import { KVStore } from '../../../_shared/kv';
 import { json } from '../../../_shared/response';
 import { getUserFromRequest } from '../../../_shared/jwt';
 import { log } from '../../../_shared/logger';
 
-const SRC = 'cloud-functions';
+const SRC = 'settings';
 
 export async function onRequestGet(context: any) {
   const { request, env } = context;

@@ -103,7 +103,7 @@ function StatsTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_BASE}/stats/`, { credentials: 'include' })
+    fetch(`${API_BASE}/stats`, { credentials: 'include' })
       .then((r) => r.json())
       .then(setStats)
       .finally(() => setLoading(false));
@@ -166,7 +166,7 @@ function TasksTab() {
   const fetchTasks = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/tasks/`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/tasks`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setTasks(data.tasks || []);
@@ -310,7 +310,7 @@ function LogsTab() {
     setLoading(true);
     const params = status ? `?status=${status}` : '';
     try {
-      const res = await fetch(`${API_BASE}/executions/${params}`, {
+      const res = await fetch(`${API_BASE}/executions${params}`, {
         credentials: 'include',
       });
       if (res.ok) {
@@ -421,7 +421,7 @@ function SettingsTab() {
   const [selectedProvider, setSelectedProvider] = useState<string>('');
 
   useEffect(() => {
-    fetch(`${API_BASE}/settings/`, { credentials: 'include' })
+    fetch(`${API_BASE}/settings`, { credentials: 'include' })
       .then((r) => r.json())
       .then((data) => {
         if (data.settings) setSettings(data.settings);
@@ -429,7 +429,7 @@ function SettingsTab() {
       .finally(() => setLoading(false));
 
     // 动态获取网关中已配置 API Key 的模型列表
-    fetch(`${API_BASE}/models/`, { credentials: 'include' })
+    fetch(`${API_BASE}/models`, { credentials: 'include' })
       .then((r) => r.json())
       .then((data) => {
         if (data.models) setAvailableModels(data.models);
@@ -458,7 +458,7 @@ function SettingsTab() {
     setSaving(true);
     setMessage('');
     try {
-      const res = await fetch(`${API_BASE}/settings/`, {
+      const res = await fetch(`${API_BASE}/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
