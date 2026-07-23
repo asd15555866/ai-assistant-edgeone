@@ -82,18 +82,22 @@ async function saveMessage(ctx: ChatContext, msg: { role: string; content: strin
 
   const msgId = msg.id || generateId();
 
-  // 必须写入 KV（Conversations API 只读 KV）
-  await ctx.kv.createMessage({
-    id: msgId,
-    conversation_id: ctx.conversationId,
-    role: msg.role as 'user' | 'assistant',
-    content: msg.content,
-    created_at: Date.now(),
-  });
+  // 写入 KV（Agent 运行时可能没有 KV 绑定，降级到 store）
+  if (ctx.kv?.kv) {
+    try {
+      await ctx.kv.createMessage({
+        id: msgId,
+        conversation_id: ctx.conversationId,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        created_at: Date.now(),
+      });
+    } catch (e) { ctx.traceLog.push(`[kv] saveMessage 失败: ${(e as Error).message}`); }
+  }
 
-  // 可选写入平台 store（用于可观测性和框架适配）
+  // 写入平台 store
   if (ctx.store?.addMessage) {
-    try { await ctx.store.addMessage({ role: msg.role, content: msg.content }); } catch { /* store 写入失败不影响主流程 */ }
+    try { await ctx.store.addMessage({ role: msg.role, content: msg.content }); } catch { /* ignore */ }
   } else if (ctx.store?.set) {
     try { await ctx.store.set(`msg:${msgId}`, JSON.stringify(msg)); } catch { /* ignore */ }
   }
@@ -103,10 +107,13 @@ async function saveMessage(ctx: ChatContext, msg: { role: string; content: strin
  * 获取历史消息（统一从 KV 读取）
  */
 async function loadHistory(ctx: ChatContext): Promise<{ role: string; content: string }[]> {
-  return (await ctx.kv.listConversationMessages(ctx.conversationId)).map(m => ({
-    role: m.role,
-    content: m.content,
-  }));
+  if (!ctx.kv?.kv) return [];
+  try {
+    return (await ctx.kv.listConversationMessages(ctx.conversationId)).map(m => ({
+      role: m.role,
+      content: m.content,
+    }));
+  } catch { return []; }
 }
 
 // ==================== 系统提示词 ====================

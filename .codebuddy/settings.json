@@ -1,5 +1,3 @@
 {
-  "enabledPlugins": {
-    "superpowers-chrome@codebuddy-plugins-official": true
-  }
+  "enabledPlugins": {}
 }

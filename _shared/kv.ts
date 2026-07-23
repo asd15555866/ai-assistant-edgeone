@@ -102,6 +102,15 @@ export class KVStore {
     if (!kv) {
       kv = (globalThis as any).AI_ASSISTANT_KV;
     }
+    // 如果 KV 仍不可用（如 Agent 运行时没有 KV 绑定），用空操作对象兜底
+    if (!kv) {
+      kv = {
+        get: async () => null,
+        put: async () => {},
+        delete: async () => {},
+        list: async () => ({ keys: [], complete: true, cursor: null }),
+      };
+    }
     this.kv = kv;
   }
 
