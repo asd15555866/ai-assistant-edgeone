@@ -111,17 +111,19 @@ export class KVStore {
    */
   private async _listAllKeys(prefix: string): Promise<string[]> {
     const allKeys: string[] = [];
-    let cursor: string | undefined;
+    let cursor: string | null = null;
     let complete = false;
     let pageCount = 0;
     const MAX_PAGES = 1000;
 
     do {
-      const result = await this.kv.list({ prefix, cursor });
+      // EdgeOne KV 要求 cursor 必须是 string，不能是 undefined
+      // 第一次传 null（空字符串），后续用返回的 cursor
+      const result = await this.kv.list({ prefix, cursor: cursor || '' });
       for (const item of result.keys) {
         allKeys.push(item.name);
       }
-      cursor = result.cursor;
+      cursor = result.cursor || null;
       complete = result.complete;
       pageCount++;
       // 安全保护：如果 KV 返回 complete=false 但 cursor 为空，强制退出
