@@ -764,7 +764,7 @@ const TOOL_DEFINITIONS = [
     type: 'function' as const,
     function: {
       name: 'execute_code',
-      description: '执行 Python 或 JavaScript 代码，用于计算、数据处理、运行脚本等',
+      description: 'Execute Python or JavaScript code for ANY computation. MANDATORY for: math (1+1, 123*456, 2**10), unit conversion (100 USD to CNY), data processing, sorting, filtering, string manipulation. Examples: "算一下 123*456" → code="print(123*456)", "100 美元换人民币" → code="print(100*7.2)". When in doubt, USE THIS for math.',
       parameters: {
         type: 'object',
         properties: {
@@ -779,24 +779,17 @@ const TOOL_DEFINITIONS = [
     type: 'function' as const,
     function: {
       name: 'browser_automation',
-      description: 'Control a browser ONLY when user wants to interact with a specific website: login, click, fill forms, screenshot, scrape page content. Examples: "登录百度", "截取 example.com 首页", "点页面上的提交按钮". DO NOT use this for math, calculations, or simple text questions.',
+      description: 'Control a browser to interact with a website: open URL, click, type, screenshot, get page content. Examples: "登录百度", "截取 example.com 首页". DO NOT use for math, calculations, or simple questions.',
       parameters: {
         type: 'object',
         properties: {
-          action: {
-            type: 'object',
-            description: '浏览器操作指令',
-            properties: {
-              type: { type: 'string', enum: ['goto', 'click', 'type', 'screenshot', 'getContent'], description: '操作类型' },
-              url: { type: 'string', description: '目标 URL（仅 goto 类型需要）' },
-              selector: { type: 'string', description: 'CSS 选择器' },
-              value: { type: 'string', description: '输入的值（仅 type 类型需要）' },
-              wait: { type: 'number', description: '操作后等待时间（毫秒）' },
-            },
-            required: ['type'],
-          },
+          type: { type: 'string', enum: ['goto', 'click', 'type', 'screenshot', 'getContent'], description: 'Operation type: goto=open URL, click=click element, type=fills input, screenshot=capture page, getContent=extract text' },
+          url: { type: 'string', description: 'Target URL (required for goto)' },
+          selector: { type: 'string', description: 'CSS selector for the target element (click, type, getContent)' },
+          value: { type: 'string', description: 'Text to type into the input (required for type)' },
+          wait: { type: 'number', description: 'Wait time in ms after operation (optional)' },
         },
-        required: ['action'],
+        required: ['type'],
       },
     },
   },
@@ -862,7 +855,7 @@ async function executeTool(
       result = await executeCode(toolCall.arguments.code as string, toolCall.arguments.language as string, ctx);
       break;
     case 'browser_automation':
-      result = await browserAction(toolCall.arguments.action as any, ctx, conversationId);
+      result = await browserAction(toolCall.arguments as any, ctx, conversationId);
       break;
     case 'schedule_task':
       result = await scheduleTask(toolCall.arguments as any, ctx);
