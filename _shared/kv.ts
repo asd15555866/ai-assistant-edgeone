@@ -97,6 +97,11 @@ export class KVStore {
   private kv: any; // EdgeOne KV namespace
 
   constructor(kv: any) {
+    // EdgeOne Makers 将 KV 命名空间作为全局变量注入（非 env 对象属性）
+    // 模板源码印证：https://github.com/TencentEdgeOne/pages-templates/examples/functions-kv
+    if (!kv) {
+      kv = (globalThis as any).AI_ASSISTANT_KV;
+    }
     this.kv = kv;
   }
 
