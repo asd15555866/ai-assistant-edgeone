@@ -22,6 +22,7 @@ import { getUserFromRequest, parseCookies } from '../../_shared/jwt';
 import { log, logError } from '../../_shared/logger';
 import { createTimeoutSignal } from '../../_shared/abort';
 import { saveBrowserCookies, restoreBrowserCookies, detectLoginChallenge } from '../../_shared/browser-utils';
+import { buildToolRegistry, getCustomTools, ToolRegistry } from './_tools';
 
 const SRC = 'agent';
 
@@ -591,7 +592,8 @@ async function callLLM(
   env: Record<string, string>,
   kv?: KVStore,
   onStream?: (chunk: string) => void,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  tools?: any[]
 ): Promise<LLMResponse> {
   // 动态获取模型名
   let model = '@makers/deepseek-v4-pro';
@@ -615,11 +617,12 @@ async function callLLM(
     model,
     messages,
     stream: !!onStream,
-    tools: TOOL_DEFINITIONS,
     tool_choice: 'auto' as const,
     max_tokens: 1024,
     temperature: 0.9,
   };
+  // 工具定义：传入则使用（来自 ToolRegistry），否则不带 tools 参数
+  if (tools && tools.length > 0) body.tools = tools;
   // EdgeOne AI Gateway 推荐：流式时附带 stream_options 以正确获取 usage
   if (onStream) body.stream_options = { include_usage: true };
 
@@ -746,102 +749,16 @@ async function callLLM(
   }
 }
 
-// ==================== 工具定义（OpenAI Tool Schema） ====================
-
-const TOOL_DEFINITIONS = [
-  {
-    type: 'function' as const,
-    function: {
-      name: 'web_search',
-      description: 'Search the web for real-time information: news, weather, prices, current events. Examples: "今天合肥天气", "iPhone 16 价格". NOT for math calculations or data processing.',
-      parameters: {
-        type: 'object',
-        properties: {
-          query: { type: 'string', description: '搜索关键词，应尽量具体明确' },
-        },
-        required: ['query'],
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'execute_code',
-      description: 'Execute Python or JavaScript code for ANY computation. MANDATORY for: math (1+1, 123*456, 2**10), unit conversion (100 USD to CNY), data processing, sorting, filtering, string manipulation. Examples: "算一下 123*456" → code="print(123*456)", "100 美元换人民币" → code="print(100*7.2)". When in doubt, USE THIS for math.',
-      parameters: {
-        type: 'object',
-        properties: {
-          code: { type: 'string', description: '要执行的代码内容' },
-          language: { type: 'string', enum: ['python', 'javascript'], description: '代码语言' },
-        },
-        required: ['code', 'language'],
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'browser_automation',
-      description: 'Control a browser to interact with a website: open URL, click, type, screenshot, get page content. Examples: "登录百度", "截取 example.com 首页". DO NOT use for math, calculations, or simple questions.',
-      parameters: {
-        type: 'object',
-        properties: {
-          type: { type: 'string', enum: ['goto', 'click', 'type', 'screenshot', 'getContent'], description: 'Operation type: goto=open URL, click=click element, type=fills input, screenshot=capture page, getContent=extract text' },
-          url: { type: 'string', description: 'Target URL (required for goto)' },
-          selector: { type: 'string', description: 'CSS selector for the target element (click, type, getContent)' },
-          value: { type: 'string', description: 'Text to type into the input (required for type)' },
-          wait: { type: 'number', description: 'Wait time in ms after operation (optional)' },
-        },
-        required: ['type'],
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'schedule_task',
-      description: '创建或管理定时任务。当用户指令包含时间周期词（每天、每周、每小时等）时使用此工具创建定时任务，不得当场执行任务内容。也可用于暂停/恢复已有任务。如果这是一个需要登录网站的 browser_automation 任务，记得询问用户账号密码，然后用 save_credentials 工具保存。',
-      parameters: {
-        type: 'object',
-        properties: {
-          name: { type: 'string', description: '任务名称，应简要描述任务内容' },
-          cron: { type: 'string', description: '运行周期，支持中文描述（如"每天 9 点"、"每隔一小时"）或标准 cron 表达式' },
-          action: { type: 'string', enum: ['browser_automation', 'execute_code', 'web_search'], description: '要执行的动作类型' },
-          params: { type: 'object', description: '动作参数，根据 action 类型传入对应参数' },
-          notify_email: { type: 'string', description: '可选，执行结果通知邮箱' },
-          task_id: { type: 'string', description: '管理已有任务时传入的任务 ID' },
-          status: { type: 'string', enum: ['active', 'paused'], description: '管理已有任务时设置的新状态' },
-        },
-        required: ['name', 'cron', 'action', 'params'],
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'save_credentials',
-      description: '保存网站登录凭证，用于定时任务自动登录。当用户创建了需要登录的 browser_automation 任务并提供了账号密码时，调用此工具保存。凭证会加密存储。',
-      parameters: {
-        type: 'object',
-        properties: {
-          task_id: { type: 'string', description: '定时任务的 ID（由 schedule_task 返回）' },
-          username: { type: 'string', description: '登录用户名' },
-          password: { type: 'string', description: '登录密码' },
-          login_url: { type: 'string', description: '登录页面的 URL' },
-          username_selector: { type: 'string', description: '用户名输入框的 CSS 选择器，例如 input[name=user]' },
-          password_selector: { type: 'string', description: '密码输入框的 CSS 选择器，例如 input[name=pass]' },
-          submit_selector: { type: 'string', description: '登录按钮的 CSS 选择器，例如 button[type=submit]' },
-        },
-        required: ['task_id', 'username', 'password', 'login_url', 'username_selector', 'password_selector', 'submit_selector'],
-      },
-    },
-  },
-];
+// ==================== 工具定义 ====================
+// 工具定义改用 agents/_tools.ts 里的 buildToolRegistry，
+// 从 context.tools.all() 加载 EdgeOne 平台原生工具
+// （description 由平台为 -flash 模型调优，比手写可靠得多）
 
 // ==================== 工具路由 ====================
 
 async function executeTool(
   toolCall: ToolCall,
+  registry: ToolRegistry,
   ctx: ChatContext
 ): Promise<ToolResult> {
   const { conversationId, userId } = ctx;
@@ -849,32 +766,15 @@ async function executeTool(
 
   log(SRC, { msg: 'tool call', userId, convId: conversationId, tool: toolCall.name });
 
-  let result: ToolResult;
-  switch (toolCall.name) {
-    case 'web_search':
-      result = await webSearch(toolCall.arguments.query as string, ctx);
-      break;
-    case 'execute_code':
-      result = await executeCode(toolCall.arguments.code as string, toolCall.arguments.language as string, ctx);
-      break;
-    case 'browser_automation':
-      result = await browserAction(toolCall.arguments as any, ctx, conversationId);
-      break;
-    case 'schedule_task':
-      result = await scheduleTask(toolCall.arguments as any, ctx);
-      break;
-    case 'save_credentials':
-      result = await saveCredentials(toolCall.arguments as any, ctx);
-      break;
-    default:
-      tracerSpan(ctx, 'execute_tool', { error: `未知工具: ${toolCall.name}` });
-      result = {
-        success: false,
-        data: null,
-        error: `未知工具: ${toolCall.name}`,
-        traceLog: ctx.traceLog,
-      };
-  }
+  // 用 ToolRegistry 统一调度（EdgeOne 平台原生工具 + 自定义工具）
+  const r = await registry.execute(toolCall.name, toolCall.arguments);
+
+  const result: ToolResult = {
+    success: r.success,
+    data: r.data ?? null,
+    error: r.success ? undefined : r.error,
+    traceLog: ctx.traceLog,
+  };
 
   if (result.success) {
     log(SRC, { msg: 'tool ok', userId, convId: conversationId, tool: toolCall.name, dur: Date.now() - t0 });
@@ -1003,9 +903,13 @@ async function handleJSONResponse(message: string, ctx: ChatContext) {
     ...history,
   ];
 
+  // 构造工具注册表：EdgeOne 平台原生工具 + 自定义工具
+  const registry = buildToolRegistry(context, getCustomTools({ ...ctx, userId }));
+  const tools = registry.toOpenAITools();
+
   try {
     // 调用 LLM（非流式）
-    let { content, toolCalls, usage, model } = await callLLM(llmMessages, ctx.env, ctx.kv);
+    let { content, toolCalls, usage, model } = await callLLM(llmMessages, ctx.env, ctx.kv, undefined, undefined, tools);
     recordUsage(ctx.kv, usage, model);
 
     // 一致性检测：模型嘴上说要查但不调工具 → 强制重试一次
@@ -1016,7 +920,7 @@ async function handleJSONResponse(message: string, ctx: ChatContext) {
         role: 'user',
         content: '你没有真正调用任何工具就给出了回复，这违反了规则。\n如果问题需要联网/工具才能回答，你必须调用 web_search 或 browser_automation 工具。\n如果是纯闲聊，就直接回答，不需要任何"我去查"的措辞。\n请重试。',
       });
-      const retry = await callLLM(llmMessages, ctx.env, ctx.kv);
+      const retry = await callLLM(llmMessages, ctx.env, ctx.kv, undefined, undefined, tools);
       recordUsage(ctx.kv, retry.usage, retry.model);
       content = retry.content;
       toolCalls = retry.toolCalls;
@@ -1044,7 +948,7 @@ async function handleJSONResponse(message: string, ctx: ChatContext) {
           message: `正在执行: ${tc.name}...`,
           timestamp: Date.now(),
         });
-        const result = await executeTool(tc, ctx);
+        const result = await executeTool(tc, registry, ctx);
         const resultStr = result.success
           ? typeof result.data === 'string' ? result.data : JSON.stringify(result.data)
           : result.error || '执行失败';
@@ -1058,7 +962,7 @@ async function handleJSONResponse(message: string, ctx: ChatContext) {
         { role: 'user', content: `工具执行结果:\n${toolResults.join('\n')}\n请基于这些结果给用户一个完整的回复。` },
       ];
 
-      const { content: finalContent, usage: usage2, model: model2 } = await callLLM(finalMessages, ctx.env, ctx.kv);
+      const { content: finalContent, usage: usage2, model: model2 } = await callLLM(finalMessages, ctx.env, ctx.kv, undefined, undefined, tools);
       recordUsage(ctx.kv, usage2, model2);
       finalResponse = finalContent;
     }
@@ -1124,6 +1028,10 @@ async function handleSSEStream(message: string, ctx: ChatContext) {
       let fullContent = '';
       let aborted = false;
 
+      // 构造工具注册表：EdgeOne 平台原生工具 + 自定义工具
+      const registry = buildToolRegistry(context, getCustomTools({ ...ctx, userId }));
+      const tools = registry.toOpenAITools();
+
       // 监听客户端断开
       if (signal) {
         signal.addEventListener('abort', () => { aborted = true; });
@@ -1167,7 +1075,8 @@ async function handleSSEStream(message: string, ctx: ChatContext) {
           (delta: string) => {
             sendSSE('message', JSON.stringify({ content: delta }));
           },
-          signal
+          signal,
+          tools
         );
         if (!aborted) recordUsage(ctx.kv, usage, model);
 
@@ -1186,7 +1095,7 @@ async function handleSSEStream(message: string, ctx: ChatContext) {
               message: `正在执行: ${tc.name}...`,
             }));
 
-            const result = await executeTool(tc, ctx);
+            const result = await executeTool(tc, registry, ctx);
 
             toolExecutionResults.push({
               name: tc.name,
@@ -1236,7 +1145,8 @@ async function handleSSEStream(message: string, ctx: ChatContext) {
             (delta: string) => {
               sendSSE('message', JSON.stringify({ content: delta }));
             },
-            signal
+            signal,
+            tools
           );
           if (!aborted) recordUsage(ctx.kv, usage2, model2);
 
