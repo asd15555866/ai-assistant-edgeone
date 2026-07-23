@@ -54,8 +54,8 @@ const VENDOR_PROBES: Record<string, { probe: string; models: string[] }> = {
     models: ['hunyuan/hunyuan-pro', 'hunyuan/hunyuan-standard'],
   },
   '智谱': {
-    probe: 'zhipu/glm-4-flash',
-    models: ['zhipu/glm-4-plus', 'zhipu/glm-4-flash'],
+    probe: 'zai/glm-4.7-flashx',
+    models: ['zai/glm-5.1', 'zai/glm-5', 'zai/glm-5-turbo', 'zai/glm-4.7', 'zai/glm-4.7-flashx', 'zai/glm-4.6'],
   },
   '月之暗面': {
     probe: 'moonshot/moonshot-v1-8k',

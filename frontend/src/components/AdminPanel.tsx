@@ -645,7 +645,7 @@ function detectProvider(modelName: string): string {
   if (m.startsWith('claude-')) return 'Anthropic';
   if (m.startsWith('gemini-') || m.startsWith('gemma-')) return 'Google';
   if (m.startsWith('deepseek-')) return 'DeepSeek';
-  if (m.includes('glm') || m.startsWith('zaigl') || m.startsWith('chatglm')) return '智谱';
+  if (m.startsWith('zai/') || m.includes('glm') || m.startsWith('zaigl') || m.startsWith('chatglm')) return '智谱';
   if (m.startsWith('moonshot-') || m.startsWith('kimi-')) return '月之暗面';
   if (m.startsWith('hunyuan-')) return '腾讯混元';
   if (m.startsWith('abab') || m.startsWith('minimax-') || m.startsWith('speech-')) return 'MiniMax';
