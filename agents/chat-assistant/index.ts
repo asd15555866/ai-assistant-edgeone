@@ -16,7 +16,7 @@ import { KVStore, Message, Conversation, ScheduledTask, IntermediateState, gener
 import { getUserFromRequest, parseCookies } from '../../_shared/jwt';
 import { log, logError } from '../../_shared/logger';
 import { createTimeoutSignal } from '../../_shared/abort';
-import { buildToolRegistry, getCustomTools, ToolRegistry } from './_tools';
+import { buildToolRegistry, getCustomTools, ToolRegistry } from '../_tools';
 
 const SRC = 'agent';
 
