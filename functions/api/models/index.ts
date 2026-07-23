@@ -122,8 +122,20 @@ const VENDOR_PROBES: Record<string, { probes: string[]; models: string[] }> = {
 };
 
 /**
- * 探测单个模型是否可用（返回 200 即视为可用）
- * 用最小请求：max_tokens=1，单条 test 消息
+ * 探测单个模型是否可用
+ *
+ * 返回值含义：
+ * - true  → 网关把请求转发到了厂商（厂商返回了任何响应，包括 404/429）
+ *          说明该厂商的 API Key 已绑定
+ * - false → 网关返回 400 "No API key configured for provider"
+ *          说明该厂商的 API Key 未绑定
+ *          或者网络/超时错误
+ *
+ * 注意：不能用 200 作为成功标准，因为：
+ * 1. 某些模型可能临时下线（Google 返回 404）
+ * 2. 某些模型可能限流（返回 429）
+ * 3. 厂商可能 cold start 慢（请求超时）
+ * 这些情况 API Key 都已绑定，只是不应该被理解为「完全失败」
  */
 async function probeModel(baseUrl: string, apiKey: string, model: string): Promise<boolean> {
   const isGateway = baseUrl.replace(/\/+$/, '').endsWith('/v1');
@@ -143,9 +155,18 @@ async function probeModel(baseUrl: string, apiKey: string, model: string): Promi
         messages: [{ role: 'user', content: 'test' }],
         max_tokens: 1,
       }),
-      signal: createTimeoutSignal(8000),
+      signal: createTimeoutSignal(10000),
     });
-    return response.ok;
+
+    // 400 + "No API key" = 厂商 API Key 未绑定
+    // 其他任何状态码（200/404/429 等）= 网关确实把请求转给了厂商，API Key 已绑定
+    if (response.status === 400) {
+      const text = await response.text().catch(() => '');
+      if (text.includes('No API key configured')) {
+        return false;
+      }
+    }
+    return true;
   } catch {
     return false;
   }
