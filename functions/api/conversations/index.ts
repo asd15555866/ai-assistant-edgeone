@@ -21,18 +21,20 @@ export async function onRequestGet(context: any) {
   const userId = payload.user_id;
 
   // 优先使用 context.agent.store（Agent 对话存储）
+  // 文档：https://pages.edgeone.ai/zh/document/agents-conversation-storage
+  // listConversations 返回 { items: ConversationMeta[], nextCursor? }
+  // ConversationMeta 字段：conversationId, createdAt, lastMessageAt, messageCount, metadata
   if (context.agent?.store?.listConversations) {
     try {
-      const result = await context.agent.store.listConversations({ userId });
-      const conversations = result?.items || result?.conversations || result || [];
-      const items: any[] = Array.isArray(conversations) ? conversations : [];
+      const result = await context.agent.store.listConversations({ userId, limit: 100 });
+      const items: any[] = Array.isArray(result?.items) ? result.items : [];
       log(SRC, { method: 'GET', path: pathname, userId, count: items.length, source: 'agent.store', status: 200, dur: Date.now() - t0 });
       return json(200, { conversations: items.map((c: any) => ({
-        id: c.id || c.conversation_id,
-        title: c.title || c.name || '新对话',
-        created_at: c.created_at || c.createdAt,
-        updated_at: c.updated_at || c.updatedAt,
-        message_count: c.message_count || c.messageCount || 0,
+        id: c.conversationId || c.id,
+        title: c.metadata?.title || '新对话',
+        created_at: c.createdAt || c.created_at,
+        updated_at: c.lastMessageAt || c.updatedAt || c.updated_at,
+        message_count: c.messageCount || c.message_count || 0,
       })) });
     } catch (e) { /* 降级到 KV */ }
   }

@@ -2,7 +2,16 @@
  * 对话管理 API - 详情、更新、删除
  *
  * 路径: GET/PUT/DELETE /api/conversations/:id
- * 在 Cloud Functions 中通过 context.agent.store 访问 Agent 的对话数据
+ * 通过 context.agent.store 读取 Agent 对话数据（Blob 存储）
+ *
+ * 官方文档：https://pages.edgeone.ai/zh/document/agents-conversation-storage
+ *
+ * 注意事项：
+ * - getMessages 返回 Array<Message> 直接（不是 { items } 对象）
+ * - limit 上限 100（之前写 500 会抛 MemoryValidationError）
+ * - Message 字段：messageId, role, content, createdAt（驼峰命名）
+ * - ConversationMeta 字段：conversationId, createdAt, lastMessageAt, messageCount
+ *   没有 title 字段，标题只能写在 metadata 里
  */
 import { KVStore } from '../../../_shared/kv';
 import { json } from '../../../_shared/response';
@@ -23,20 +32,27 @@ export async function onRequestGet(context: any) {
   if (!payload) return json(401, { error: '未登录' });
   const convId = getConvIdFromPath(pathname);
 
-  // 尝试从 context.agent.store 读取消息（Blob 存储）
+  // 从 context.agent.store 读取消息（Blob 存储）
+  // API 返回值是 Array<Message> 直接，不是 { items }
   if (context.agent?.store?.getMessages) {
     try {
-      const result = await context.agent.store.getMessages({ conversationId: convId, limit: 500 });
-      const messages = result?.items || result?.messages || result || [];
-      const items: any[] = Array.isArray(messages) ? messages : [];
-      if (items.length > 0) {
-        log(SRC, { method: 'GET', path: pathname, convId, msgCount: items.length, source: 'agent.store', status: 200, dur: Date.now() - t0 });
+      const messages: any[] = await context.agent.store.getMessages({
+        conversationId: convId,
+        limit: 100,  // 文档上限 100
+        order: 'asc',
+      });
+      if (Array.isArray(messages) && messages.length > 0) {
+        log(SRC, { method: 'GET', path: pathname, convId, msgCount: messages.length, source: 'agent.store', status: 200, dur: Date.now() - t0 });
         return json(200, {
           conversation: { id: convId },
-          messages: items.map((m: any) => ({ role: m.role, content: m.content, created_at: m.created_at || m.createdAt })),
+          messages: messages.map((m: any) => ({
+            role: m.role,
+            content: m.content,
+            created_at: m.createdAt || m.created_at,
+            message_id: m.messageId,
+          })),
         });
       }
-      // agent.store 返回空数组 → 降级到 KV 试试
       log(SRC, { method: 'GET', path: pathname, convId, msgCount: 0, source: 'agent.store.empty', dur: Date.now() - t0 });
     } catch (e) {
       log(SRC, { method: 'GET', path: pathname, convId, source: 'agent.store.error', error: (e as Error).message, dur: Date.now() - t0 });

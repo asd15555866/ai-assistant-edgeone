@@ -127,13 +127,13 @@ async function saveMessage(ctx: ChatContext, msg: { role: string; content: strin
  * 从平台内置 store 加载对话历史
  */
 async function loadHistory(ctx: ChatContext): Promise<{ role: string; content: string }[]> {
-  // 优先从平台内置 store 读取
+  // 从平台内置 store 读取（返回值是 Array<Message> 直接）
   if (ctx.store?.getMessages) {
     try {
-      const result = await ctx.store.getMessages({ conversationId: ctx.conversationId, limit: 100 });
-      const messages = result?.items || result?.messages || result || [];
-      const items: any[] = Array.isArray(messages) ? messages : [];
-      return items.map((m: any) => ({ role: m.role, content: m.content }));
+      const messages: any[] = await ctx.store.getMessages({ conversationId: ctx.conversationId, limit: 100 });
+      if (Array.isArray(messages)) {
+        return messages.map((m: any) => ({ role: m.role, content: m.content }));
+      }
     } catch { /* 降级到 KV */ }
   }
 
