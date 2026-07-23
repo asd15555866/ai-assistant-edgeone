@@ -20,26 +20,7 @@ export async function onRequestGet(context: any) {
   if (!payload) return json(401, { error: '未登录' });
   const userId = payload.user_id;
 
-  // 优先使用 context.agent.store（Agent 对话存储）
-  // 文档：https://pages.edgeone.ai/zh/document/agents-conversation-storage
-  // listConversations 返回 { items: ConversationMeta[], nextCursor? }
-  // ConversationMeta 字段：conversationId, createdAt, lastMessageAt, messageCount, metadata
-  if (context.agent?.store?.listConversations) {
-    try {
-      const result = await context.agent.store.listConversations({ userId, limit: 100 });
-      const items: any[] = Array.isArray(result?.items) ? result.items : [];
-      log(SRC, { method: 'GET', path: pathname, userId, count: items.length, source: 'agent.store', status: 200, dur: Date.now() - t0 });
-      return json(200, { conversations: items.map((c: any) => ({
-        id: c.conversationId || c.id,
-        title: c.metadata?.title || '新对话',
-        created_at: c.createdAt || c.created_at,
-        updated_at: c.lastMessageAt || c.updatedAt || c.updated_at,
-        message_count: c.messageCount || c.message_count || 0,
-      })) });
-    } catch (e) { /* 降级到 KV */ }
-  }
-
-  // 降级：从 KV 读取
+  // context.agent.store 在 Cloud Functions 中不可用，直接走 KV
   const kv = new KVStore(env.AI_ASSISTANT_KV);
   const conversations = await kv.listUserConversations(userId);
   log(SRC, { method: 'GET', path: pathname, userId, count: conversations.length, source: 'kv', status: 200, dur: Date.now() - t0 });
@@ -56,11 +37,12 @@ export async function onRequestPost(context: any) {
 
   const body = await request.json().catch(() => ({}));
 
-  // 创建对话
+  // 双写：Blob（Agent 运行时用）+ KV（Cloud Functions 用）
   const conversationId = generateId();
   const title = body.title || '新对话';
+  const kv = new KVStore(env.AI_ASSISTANT_KV);
 
-  // 写入 agent.store（Blob 存储），Cloud Function 通过 context.agent.store 读取
+  // 1. 写 Blob（Agent 运行时）
   if (context.agent?.store?.appendMessage) {
     try {
       await context.agent.store.appendMessage({
@@ -68,13 +50,10 @@ export async function onRequestPost(context: any) {
         role: 'system',
         content: `Conversation created: ${title}`,
       });
-      log(SRC, { method: 'POST', path: pathname, userId, convId: conversationId, source: 'agent.store', status: 201, dur: Date.now() - t0 });
-      return json(201, { conversation: { id: conversationId, title, message_count: 0 } });
-    } catch (e) { /* 降级到 KV */ }
+    } catch { /* ignore */ }
   }
 
-  // 降级：用 KV 创建
-  const kv = new KVStore(env.AI_ASSISTANT_KV);
+  // 2. 写 KV（Cloud Functions 读取）
   const conversation: Conversation = {
     id: conversationId,
     user_id: userId,
@@ -84,6 +63,6 @@ export async function onRequestPost(context: any) {
     message_count: 0,
   };
   await kv.createConversation(conversation);
-  log(SRC, { method: 'POST', path: pathname, userId, convId: conversation.id, source: 'kv', status: 201, dur: Date.now() - t0 });
+  log(SRC, { method: 'POST', path: pathname, userId, convId: conversationId, source: 'kv+store', status: 201, dur: Date.now() - t0 });
   return json(201, { conversation });
 }
