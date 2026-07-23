@@ -12,6 +12,16 @@ import { BarChart3, ClipboardList, Settings, X, RefreshCw, Search, Filter } from
 
 const API_BASE = '/api';
 
+// EdgeOne Makers 内置免费模型列表（@makers/ 前缀）
+// https://pages.edgeone.ai/zh/document/models-vendors-overview
+const BUILTIN_MODELS = [
+  '@makers/deepseek-v4-flash',
+  '@makers/deepseek-v4-pro',
+  '@makers/deepseek-reasoner',
+  '@makers/gemini-2.5-flash',
+  '@makers/gpt-4o-mini',
+];
+
 type StatsData = {
   totalExecutions: number;
   successCount: number;
@@ -429,14 +439,21 @@ function SettingsTab() {
       .finally(() => setLoading(false));
 
     // 动态获取网关中已配置 API Key 的模型列表
+    // 失败时静默回退到内置 @makers/ 模型（用户可手动填入）
     fetch(`${API_BASE}/models`, { credentials: 'include' })
       .then((r) => r.json())
       .then((data) => {
-        if (data.models) setAvailableModels(data.models);
-        setModelsInfo({ source: data.source, message: data.message, count: data.count });
+        if (data.models) {
+          setAvailableModels(data.models);
+          setModelsInfo({ source: data.source, message: data.message, count: data.count });
+        } else {
+          setAvailableModels(BUILTIN_MODELS);
+        }
       })
       .catch(() => {
-        setModelsInfo({ source: 'error', message: '获取模型列表失败' });
+        // 网关未配置或不可用，回退到 EdgeOne Makers 内置免费模型
+        setAvailableModels(BUILTIN_MODELS);
+        setModelsInfo({ source: 'builtin', message: '使用 EdgeOne Makers 内置模型（@makers/ 前缀，免费）' });
       });
   }, []);
 
