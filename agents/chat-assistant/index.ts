@@ -214,10 +214,11 @@ async function webSearch(query: string, ctx: ChatContext): Promise<ToolResult> {
     tracerSpan(ctx, 'web_search', { resultCount: results.length });
     return { success: true, data: result, traceLog: ctx.traceLog };
   } catch (error) {
+    // 不要把原始异常信息暴露给用户，只记日志，返回友好提示
     tracerSpan(ctx, 'web_search', { error: (error as Error).message });
     return {
-      success: true,
-      data: `搜索「${query}」时出现错误，请稍后重试。`,
+      success: false,
+      data: `搜索「${query}」暂时不可用，请稍后再试。`,
       traceLog: ctx.traceLog,
     };
   }
@@ -253,7 +254,7 @@ async function executeCode(
     tracerSpan(ctx, 'execute_code', { error: (error as Error).message });
     return {
       success: false,
-      data: `代码执行出错: ${(error as Error).message}`,
+      data: `代码执行暂时不可用，请稍后再试。`,
       traceLog: ctx.traceLog,
     };
   }
