@@ -881,7 +881,18 @@ export async function onRequest(context: any) {
   }
 
   try {
-    const { message } = await request.json();
+    // EdgeOne Agent 的 request 是普通对象（无 .json() 方法），需手动解析 body
+    let body: any = {};
+    try {
+      if (typeof request.json === 'function') {
+        body = await request.json();
+      } else if (typeof request.body === 'string') {
+        body = JSON.parse(request.body);
+      } else if (request.body) {
+        body = request.body;
+      }
+    } catch { /* body 解析失败时用空对象 */ }
+    const { message } = body;
     if (!message || typeof message !== 'string') {
       log(SRC, { msg: 'agent rejected', reason: 'empty message', userId, convId: conversationId, dur: Date.now() - t0 });
       return new Response(JSON.stringify({ error: '消息内容不能为空' }), {
