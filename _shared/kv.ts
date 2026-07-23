@@ -97,6 +97,9 @@ export class KVStore {
   private kv: any; // EdgeOne KV namespace
 
   constructor(kv: any) {
+    if (kv == null) {
+      throw new Error("KV namespace AI_ASSISTANT_KV is not bound. Please check edgeone.json kv configuration.");
+    }
     this.kv = kv;
   }
 
