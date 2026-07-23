@@ -75,7 +75,7 @@ export function useChat() {
         abortRef.current = controller;
 
         const res = await fetch(
-          `/agents/chat-assistant`,
+          `/chat-assistant`,
           {
             method: 'POST',
             headers: {
@@ -219,7 +219,7 @@ export function useChat() {
         // SSE 失败，使用 JSON 回退
         try {
           const res = await fetch(
-            `/agents/chat-assistant`,
+            `/chat-assistant`,
             {
               method: 'POST',
               headers: {
