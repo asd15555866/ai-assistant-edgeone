@@ -604,14 +604,14 @@ async function callLLM(
   abortSignal?: AbortSignal
 ): Promise<LLMResponse> {
   // 动态获取模型名
-  let model = 'deepseek-chat';
+  let model = 'deepseek/deepseek-chat';
   try {
     if (kv?.getSetting) {
       const setting = await kv.getSetting('ai_model');
       if (setting) model = setting;
     }
   } catch { /* KV 读取失败用兜底 */ }
-  model = model || env.AI_MODEL || 'deepseek-chat';
+  model = model || env.AI_MODEL || 'deepseek/deepseek-chat';
 
   // API 地址
   const baseUrl = env.AI_GATEWAY_BASE_URL || 'https://api.deepseek.com';

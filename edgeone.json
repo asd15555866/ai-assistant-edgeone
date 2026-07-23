@@ -37,7 +37,7 @@
     "JWT_SECRET": "@JWT_SECRET",
     "AI_GATEWAY_BASE_URL": "@AI_GATEWAY_BASE_URL",
     "AI_GATEWAY_API_KEY": "@AI_GATEWAY_API_KEY",
-    "AI_MODEL": "deepseek-chat",
+    "AI_MODEL": "deepseek/deepseek-chat",
     "KV_NAMESPACE": "AI_ASSISTANT_KV",
     "NOTIFICATION_EMAIL": "",
     "DEFAULT_TIMEOUT_MS": "30000",
