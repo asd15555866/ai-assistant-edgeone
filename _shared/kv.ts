@@ -444,9 +444,9 @@ export class KVStore {
     since?: number
   ): Promise<number> {
     const keys = await this._listAllKeys(PREFIX.execution);
+    const raws = await Promise.all(keys.map((k: string) => this.kv.get(k)));
     let count = 0;
-    for (const key of keys) {
-      const raw = await this.kv.get(key);
+    for (const raw of raws) {
       if (raw) {
         const exec = JSON.parse(raw);
         if (exec.status === status && (!since || exec.started_at >= since)) {
@@ -474,8 +474,8 @@ export class KVStore {
     }
 
     const keys = await this._listAllKeys(PREFIX.execution);
-    for (const key of keys) {
-      const raw = await this.kv.get(key);
+    const raws = await Promise.all(keys.map((k: string) => this.kv.get(k)));
+    for (const raw of raws) {
       if (raw) {
         const exec = JSON.parse(raw);
         const d = new Date(exec.started_at).toISOString().split('T')[0];
@@ -507,9 +507,9 @@ export class KVStore {
 
   async getAllSettings(): Promise<Record<string, string>> {
     const keys = await this._listAllKeys(PREFIX.setting);
+    const raws = await Promise.all(keys.map((k: string) => this.kv.get(k)));
     const result: Record<string, string> = {};
-    for (const key of keys) {
-      const raw = await this.kv.get(key);
+    for (const raw of raws) {
       if (raw) {
         const s = JSON.parse(raw);
         result[s.key] = s.value;
@@ -579,14 +579,19 @@ export class KVStore {
     const end = new Date(endDate + 'T23:59:59Z').getTime();
 
     const keys = await this._listAllKeys(PREFIX.tokenUsage);
-    for (const key of keys) {
-      const date = key.replace(PREFIX.tokenUsage, '');
-      const ts = new Date(date + 'T00:00:00Z').getTime();
-      if (ts < start || ts > end) continue;
+    const inRange = keys
+      .map((k: string) => ({ key: k, date: k.replace(PREFIX.tokenUsage, '') }))
+      .filter(({ date }: { date: string }) => {
+        const ts = new Date(date + 'T00:00:00Z').getTime();
+        return ts >= start && ts <= end;
+      });
 
-      const raw = await this.kv.get(key);
+    const raws = await Promise.all(inRange.map(({ key }: { key: string }) => this.kv.get(key)));
+    for (let i = 0; i < inRange.length; i++) {
+      const raw = raws[i];
       if (!raw) continue;
       const day = JSON.parse(raw);
+      const { date } = inRange[i];
 
       result.days.push({ date, total_tokens: day.total_tokens, count: day.count });
       result.total.prompt_tokens += day.prompt_tokens || 0;

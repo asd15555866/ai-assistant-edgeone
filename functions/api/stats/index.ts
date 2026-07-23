@@ -24,21 +24,29 @@ export async function onRequestGet(context: any) {
   monthStart.setHours(0, 0, 0, 0);
   const monthStartTs = monthStart.getTime();
 
-  const totalExecutions =
-    (await kv.getExecutionCountByStatus('success', monthStartTs)) +
-    (await kv.getExecutionCountByStatus('failed', monthStartTs));
-  const successCount = await kv.getExecutionCountByStatus('success', monthStartTs);
+  // 所有独立的 KV 读取并发执行
+  const [
+    successCount,
+    failedCount,
+    trend,
+    activeTaskList,
+    monthUsage,
+    todayUsage,
+  ] = await Promise.all([
+    kv.getExecutionCountByStatus('success', monthStartTs),
+    kv.getExecutionCountByStatus('failed', monthStartTs),
+    kv.getRecentExecutions(7),
+    kv.listTasks({ status: 'active' }),
+    kv.aggregateTokenUsage(
+      new Date(monthStartTs).toISOString().slice(0, 10),
+      new Date(now).toISOString().slice(0, 10),
+    ),
+    kv.getTokenUsage(new Date(now).toISOString().slice(0, 10)),
+  ]);
+
+  const totalExecutions = successCount + failedCount;
   const successRate = totalExecutions > 0 ? parseFloat(((successCount / totalExecutions) * 100).toFixed(1)) : 0;
-  const trend = await kv.getRecentExecutions(7);
-  const activeTasks = (await kv.listTasks({ status: 'active' })).length;
-
-  // Token 用量：本月
-  const monthStartDate = new Date(monthStartTs).toISOString().slice(0, 10);
-  const todayDate = new Date(now).toISOString().slice(0, 10);
-  const monthUsage = await kv.aggregateTokenUsage(monthStartDate, todayDate);
-
-  // 当天用量
-  const todayUsage = await kv.getTokenUsage(todayDate);
+  const activeTasks = activeTaskList.length;
 
   log(SRC, { method: 'GET', path: '/api/stats', userId: payload.user_id, totalExecutions, activeTasks, successRate, monthTokens: monthUsage.total.total_tokens, dur: Date.now() - t0 });
   return json(200, {
