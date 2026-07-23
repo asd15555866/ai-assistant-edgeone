@@ -1,7 +1,7 @@
 /**
  * 浏览器工具函数（共享模块）
  *
- * 从 agents/chat-assistant/index.ts 和 functions/api/cron-trigger.ts 中提取，
+ * 从 agents/chat-assistant/index.ts 和 cloud-functions/api/cron-trigger.ts 中提取，
  * 消除约 200 行重复代码。两处功能完全一致：
  *   - saveBrowserCookies：浏览器 Cookie 提取并保存到 KV
  *   - restoreBrowserCookies：从 KV 恢复 Cookie 到浏览器

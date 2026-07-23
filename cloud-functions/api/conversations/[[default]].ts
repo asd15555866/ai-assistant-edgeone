@@ -32,8 +32,31 @@ export async function onRequestGet(context: any) {
   if (!payload) return json(401, { error: '未登录' });
   const convId = getConvIdFromPath(pathname);
 
-  // 确认：context.agent.store 在 Cloud Functions 中不可用
-  // 直接走 KV 读取（agent 双写保障了 KV 中有消息数据）
+  // 优先使用 context.agent.store（新版 cloud-functions/ 目录注入 Blob 存储）
+  if (context.agent?.store?.getMessages) {
+    try {
+      const messages: any[] = await context.agent.store.getMessages({
+        conversationId: convId,
+        limit: 100,
+        order: 'asc',
+      });
+      if (Array.isArray(messages) && messages.length > 0) {
+        log(SRC, { method: 'GET', path: pathname, convId, msgCount: messages.length, source: 'agent.store', status: 200, dur: Date.now() - t0 });
+        return json(200, {
+          conversation: { id: convId },
+          messages: messages.map((m: any) => ({
+            role: m.role,
+            content: m.content,
+            created_at: m.createdAt || m.created_at,
+          })),
+        });
+      }
+    } catch (e) {
+      log(SRC, { method: 'GET', path: pathname, convId, source: 'agent.store.error', error: (e as Error).message, dur: Date.now() - t0 });
+    }
+  }
+
+  // 降级：从 KV 读取
   const kv = new KVStore(env.AI_ASSISTANT_KV);
   const conv = await kv.getConversation(convId);
   if (!conv) return json(404, { error: '对话不存在' });

@@ -106,18 +106,31 @@ function tracerSpan(ctx: ChatContext, name: string, attrs?: Record<string, unkno
  */
 async function saveMessage(ctx: ChatContext, msg: { role: string; content: string; id?: string }) {
   if (ctx.signal?.aborted) return;
-  if (!ctx.kv?.kv) return;
 
-  try {
-    const msgId = msg.id || generateId();
-    await ctx.kv.createMessage({
-      id: msgId,
-      conversation_id: ctx.conversationId,
-      role: msg.role as 'user' | 'assistant',
-      content: msg.content,
-      created_at: Date.now(),
-    });
-  } catch (e) { ctx.traceLog.push(`[kv] saveMessage 失败: ${(e as Error).message}`); }
+  // 写入 Agent Blob 存储（Agent 运行时 + cloud-functions/ 目录都可读）
+  if (ctx.store?.appendMessage) {
+    try {
+      await ctx.store.appendMessage({
+        conversationId: ctx.conversationId,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+      });
+    } catch (e) { ctx.traceLog.push(`[store] appendMessage 失败: ${(e as Error).message}`); }
+  }
+
+  // 同时写入 KV（降级读取源）
+  if (ctx.kv?.kv) {
+    try {
+      const msgId = msg.id || generateId();
+      await ctx.kv.createMessage({
+        id: msgId,
+        conversation_id: ctx.conversationId,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        created_at: Date.now(),
+      });
+    } catch (e) { ctx.traceLog.push(`[kv] saveMessage 失败: ${(e as Error).message}`); }
+  }
 }
 
 /**
@@ -127,15 +140,26 @@ async function saveMessage(ctx: ChatContext, msg: { role: string; content: strin
  * 从平台内置 store 加载对话历史
  */
 async function loadHistory(ctx: ChatContext): Promise<{ role: string; content: string }[]> {
-  if (!ctx.kv?.kv) return [];
-  try {
-    return (await ctx.kv.listConversationMessages(ctx.conversationId)).map(m => ({
-      role: m.role,
-      content: m.content,
-    }));
-  } catch {
-    return [];
+  // 优先从 Agent Blob 存储读取（Agent 运行时 + cloud-functions/ 都可读）
+  if (ctx.store?.getMessages) {
+    try {
+      const messages: any[] = await ctx.store.getMessages({ conversationId: ctx.conversationId, limit: 100 });
+      if (Array.isArray(messages)) {
+        return messages.map((m: any) => ({ role: m.role, content: m.content }));
+      }
+    } catch { /* 降级到 KV */ }
   }
+
+  // 降级：从 KV 读取
+  if (ctx.kv?.kv) {
+    try {
+      return (await ctx.kv.listConversationMessages(ctx.conversationId)).map(m => ({
+        role: m.role,
+        content: m.content,
+      }));
+    } catch { /* ignore */ }
+  }
+  return [];
 }
 
 // ==================== 系统提示词 ====================

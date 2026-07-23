@@ -20,7 +20,25 @@ export async function onRequestGet(context: any) {
   if (!payload) return json(401, { error: '未登录' });
   const userId = payload.user_id;
 
-  // context.agent.store 在 Cloud Functions 中不可用，直接走 KV
+  // 优先使用 context.agent.store（新版 cloud-functions/ 目录注入 Blob 存储）
+  if (context.agent?.store?.listConversations) {
+    try {
+      const result = await context.agent.store.listConversations({ userId, limit: 100 });
+      const items: any[] = Array.isArray(result?.items) ? result.items : [];
+      if (items.length > 0) {
+        log(SRC, { method: 'GET', path: pathname, userId, count: items.length, source: 'agent.store', status: 200, dur: Date.now() - t0 });
+        return json(200, { conversations: items.map((c: any) => ({
+          id: c.conversationId || c.id,
+          title: c.metadata?.title || '新对话',
+          created_at: c.createdAt || c.created_at,
+          updated_at: c.lastMessageAt || c.updatedAt || c.updated_at,
+          message_count: c.messageCount || c.message_count || 0,
+        })) });
+      }
+    } catch (e) { /* 降级到 KV */ }
+  }
+
+  // 降级：从 KV 读取
   const kv = new KVStore(env.AI_ASSISTANT_KV);
   const conversations = await kv.listUserConversations(userId);
   log(SRC, { method: 'GET', path: pathname, userId, count: conversations.length, source: 'kv', status: 200, dur: Date.now() - t0 });

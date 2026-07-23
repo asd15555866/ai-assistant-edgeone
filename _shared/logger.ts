@@ -4,7 +4,7 @@
  * 接入 EdgeOne Pages 平台日志：https://pages.edgeone.ai/zh/document/log-analysis
  *
  * 日志来源分为三类，可在控制台按来源筛选：
- * - Cloud Functions：functions/ 目录下的函数日志
+ * - Cloud Functions：cloud-functions/ 目录下的函数日志
  * - Agents：agents/ 目录下的 Agent 日志
  * - 全部日志：以上之和
  *
