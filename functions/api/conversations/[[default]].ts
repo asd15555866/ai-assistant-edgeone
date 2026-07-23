@@ -35,11 +35,17 @@ export async function onRequestGet(context: any) {
   // 确认：context.agent.store 在 Cloud Functions 中不可用
   // 直接走 KV 读取（agent 双写保障了 KV 中有消息数据）
   const kv = new KVStore(env.AI_ASSISTANT_KV);
-  const conv = await kv.getConversation(convId);
-  if (!conv) return json(404, { error: '对话不存在' });
-  const messages = await kv.listConversationMessages(convId);
+  const [conv, messages] = await Promise.all([
+    kv.getConversation(convId),
+    kv.listConversationMessages(convId),
+  ]);
+  // 消息存在但对话记录还未创建（异步创建还未完成）→ 仍然返回消息
+  if (!conv && messages.length === 0) return json(404, { error: '对话不存在' });
   log(SRC, { method: 'GET', path: pathname, convId, msgCount: messages.length, source: 'kv', status: 200, dur: Date.now() - t0 });
-  return json(200, { conversation: conv, messages });
+  return json(200, {
+    conversation: conv || { id: convId, title: '新对话', created_at: Date.now(), updated_at: Date.now(), message_count: 0 },
+    messages,
+  });
 }
 
 export async function onRequestPut(context: any) {

@@ -37,8 +37,8 @@ export async function onRequestPost(context: any) {
 
   const body = await request.json().catch(() => ({}));
 
-  // 在 KV 创建对话（Blob 不可读，全线走 KV）
-  const conversationId = generateId();
+  // 在 KV 创建对话（支持前端传 id，实现"立即发送"）
+  const conversationId = body.id || generateId();
   const title = body.title || '新对话';
   const kv = new KVStore(env.AI_ASSISTANT_KV);
   const conversation: Conversation = {

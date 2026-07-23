@@ -41,12 +41,12 @@ export function useConversations() {
     fetchConversations();
   }, [fetchConversations]);
 
-  const createConversation = async (title?: string): Promise<Conversation | null> => {
+  const createConversation = async (title?: string, id?: string): Promise<Conversation | null> => {
     try {
       const res = await fetch(`${API_BASE}/conversations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title || '新对话' }),
+        body: JSON.stringify({ title: title || '新对话', id }),
         credentials: 'include',
       });
       if (!res.ok) throw new Error('创建对话失败');

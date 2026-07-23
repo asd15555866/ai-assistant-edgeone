@@ -65,9 +65,12 @@ export default function App() {
     const msg = input.trim();
     setInput('');
     if (!activeConvId) {
-      createConversation(msg.slice(0, 20)).then((conv) => {
-        if (conv) { setActiveConvId(conv.id); sendMessage(msg, conv.id); }
-      });
+      // 前端先生成 ID，消息立刻发出不用等后端
+      const tempId = crypto.randomUUID();
+      setActiveConvId(tempId);
+      sendMessage(msg, tempId);
+      // 后台异步创建对话（传同一 ID，也能设标题）
+      createConversation(msg.slice(0, 20), tempId);
     } else {
       sendMessage(msg, activeConvId);
     }
