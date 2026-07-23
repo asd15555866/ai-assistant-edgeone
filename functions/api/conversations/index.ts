@@ -54,31 +54,31 @@ export async function onRequestPost(context: any) {
 
   const body = await request.json().catch(() => ({}));
 
-  // 优先用 context.agent.store 创建对话
+  // 双写：同时在 agent.store 和 KV 创建对话，保证 Cloud Function 后续能读到
   const conversationId = generateId();
+  const title = body.title || '新对话';
+
   if (context.agent?.store?.appendMessage) {
     try {
       await context.agent.store.appendMessage({
         conversationId,
         role: 'system',
-        content: `Conversation created: ${body.title || '新对话'}`,
+        content: `Conversation created: ${title}`,
       });
-      log(SRC, { method: 'POST', path: pathname, userId, convId: conversationId, source: 'agent.store', status: 201, dur: Date.now() - t0 });
-      return json(201, { conversation: { id: conversationId, title: body.title || '新对话', message_count: 0 } });
     } catch (e) { /* 降级到 KV */ }
   }
 
-  // 降级：用 KV 创建
+  // 同时在 KV 创建对话记录（确保列表/详情能查到）
   const kv = new KVStore(env.AI_ASSISTANT_KV);
   const conversation: Conversation = {
     id: conversationId,
     user_id: userId,
-    title: body.title || '新对话',
+    title,
     created_at: Date.now(),
     updated_at: Date.now(),
     message_count: 0,
   };
   await kv.createConversation(conversation);
-  log(SRC, { method: 'POST', path: pathname, userId, convId: conversation.id, source: 'kv', status: 201, dur: Date.now() - t0 });
+  log(SRC, { method: 'POST', path: pathname, userId, convId: conversation.id, source: 'kv+store', status: 201, dur: Date.now() - t0 });
   return json(201, { conversation });
 }
