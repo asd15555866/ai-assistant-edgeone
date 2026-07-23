@@ -30,12 +30,11 @@ const BUILTIN_MODELS = [
   '@makers/kimi-k2.6',
 ];
 
-// 自费厂商模型：每个厂商选一个最便宜的代表模型做探测
-// 探测成功的厂商 → 展开显示该厂商的全部模型
+// 自费厂商模型：每个厂商用 2~3 个探针，任意一个返回 200 即视为可用
 // 模型名以 EdgeOne 官方文档为准：https://pages.edgeone.ai/zh/document/models-vendors-overview
-const VENDOR_PROBES: Record<string, { probe: string; models: string[] }> = {
+const VENDOR_PROBES: Record<string, { probes: string[]; models: string[] }> = {
   'OpenAI': {
-    probe: 'openai/gpt-5.4-nano',
+    probes: ['openai/gpt-5.4-nano', 'openai/gpt-5.4-mini'],
     models: [
       'openai/gpt-5.6-sol',
       'openai/gpt-5.6-terra',
@@ -49,7 +48,7 @@ const VENDOR_PROBES: Record<string, { probe: string; models: string[] }> = {
     ],
   },
   'Anthropic': {
-    probe: 'anthropic/claude-haiku-4-5-20251001',
+    probes: ['anthropic/claude-haiku-4-5-20251001', 'anthropic/claude-opus-4-5-20251101'],
     models: [
       'anthropic/claude-fable-5',
       'anthropic/claude-sonnet-5',
@@ -63,7 +62,7 @@ const VENDOR_PROBES: Record<string, { probe: string; models: string[] }> = {
     ],
   },
   'Google': {
-    probe: 'google/gemini-2.5-flash-lite',
+    probes: ['google/gemini-2.5-flash-lite', 'google/gemini-2.5-flash'],
     models: [
       'google/gemini-3.5-flash',
       'google/gemini-3.1-pro-preview',
@@ -75,14 +74,14 @@ const VENDOR_PROBES: Record<string, { probe: string; models: string[] }> = {
     ],
   },
   'DeepSeek': {
-    probe: 'deepseek/deepseek-v4-flash',
+    probes: ['deepseek/deepseek-v4-flash'],
     models: [
       'deepseek/deepseek-v4-flash',
       'deepseek/deepseek-v4-pro',
     ],
   },
   'MiniMax': {
-    probe: 'minimax/minimax-m2.5-highspeed',
+    probes: ['minimax/minimax-m2.5-highspeed', 'minimax/minimax-m2.7-highspeed'],
     models: [
       'minimax/minimax-m3',
       'minimax/minimax-m2.7',
@@ -92,7 +91,7 @@ const VENDOR_PROBES: Record<string, { probe: string; models: string[] }> = {
     ],
   },
   '混元': {
-    probe: 'hunyuan/hy3-preview',
+    probes: ['hunyuan/hy3-preview', 'hunyuan/hunyuan-role-latest'],
     models: [
       'hunyuan/hy3',
       'hunyuan/hy3-preview',
@@ -100,7 +99,7 @@ const VENDOR_PROBES: Record<string, { probe: string; models: string[] }> = {
     ],
   },
   '智谱': {
-    probe: 'zai/glm-4.7-flashx',
+    probes: ['zai/glm-4.7-flashx', 'zai/glm-4.6'],
     models: [
       'zai/glm-5.2',
       'zai/glm-5.1',
@@ -111,7 +110,7 @@ const VENDOR_PROBES: Record<string, { probe: string; models: string[] }> = {
     ],
   },
   '月之暗面': {
-    probe: 'moonshot/kimi-k2.6',
+    probes: ['moonshot/kimi-k2.6', 'moonshot/kimi-k2.5'],
     models: [
       'moonshot/kimi-k3',
       'moonshot/kimi-k2.7-code',
@@ -176,9 +175,10 @@ export async function onRequestGet(context: any) {
   }
 
   try {
-    // 并发探测每个厂商的代表模型（探测失败的视为该厂商 API Key 未绑定）
+    // 并发探测每个厂商的探针模型（任意一个返回 200 即视为该厂商 API Key 已绑定）
     const probes = Object.entries(VENDOR_PROBES).map(async ([vendor, info]) => {
-      const available = await probeModel(baseUrl, apiKey, info.probe);
+      const results = await Promise.all(info.probes.map(m => probeModel(baseUrl, apiKey, m)));
+      const available = results.some(r => r === true);
       return { vendor, available, models: info.models };
     });
     const results = await Promise.all(probes);
