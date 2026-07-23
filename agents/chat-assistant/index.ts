@@ -611,7 +611,7 @@ async function callLLM(
     ? `${baseUrl.replace(/\/+$/, '')}/chat/completions`
     : `${baseUrl.replace(/\/+$/, '')}/v1/chat/completions`;
 
-  const body = {
+  const body: any = {
     model,
     messages,
     stream: !!onStream,
@@ -620,6 +620,8 @@ async function callLLM(
     max_tokens: 1024,
     temperature: 0.9,
   };
+  // EdgeOne AI Gateway 推荐：流式时附带 stream_options 以正确获取 usage
+  if (onStream) body.stream_options = { include_usage: true };
 
   const fetchSignal = abortSignal || createTimeoutSignal(60000);
 
