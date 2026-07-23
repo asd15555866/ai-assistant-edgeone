@@ -123,7 +123,7 @@ const SYSTEM_PROMPT = [
   '3. When a tool fails, state the failure clearly. Do not fabricate a fallback answer.',
   '4. For greetings or casual chat, reply naturally without calling any tool.',
   '5. For scheduled tasks (with time keywords like 每天/每周/定时), create via schedule_task. DO NOT execute the task immediately.',
-  '6. Choose tools based on their descriptions in the provided function schema. Do not describe tools — just use them.',
+  '6. For web searches, use the browser tool to open https://www.bing.com/search?q=关键词 and then extract results.',
   '7. Before calling a tool, briefly state what you are about to do. After getting the result, summarize for the user.',
   '8. If the user asks in Chinese, reply in Chinese. If in English, reply in English.',
 ].join('\n');
@@ -445,7 +445,7 @@ async function handleJSONResponse(message: string, ctx: ChatContext) {
     if (looksLikePromiseButNoTool(content, toolCalls)) {
       tracerSpan(ctx, 'consistency_retry', { reason: 'promise_no_tool' });
       llmMessages.push({ role: 'assistant', content: content || '' });
-      llmMessages.push({ role: 'user', content: '你没有真正调用任何工具就给出了回复，这违反了规则。如果问题需要联网/工具才能回答，你必须调用 web_search 或 browser_automation 工具。如果是纯闲聊，就直接回答，不需要任何"我去查"的措辞。请重试。' });
+      llmMessages.push({ role: 'user', content: '你没有真正调用任何工具就给出了回复。如需搜索，用浏览器打开 bing.com。闲聊就直说。请重试。' });
       const retry = await callLLM(llmMessages, ctx.env, ctx.kv, undefined, undefined, tools);
       recordUsage(ctx.kv, retry.usage, retry.model);
       content = retry.content;

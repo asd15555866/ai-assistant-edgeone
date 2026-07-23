@@ -11,8 +11,9 @@
  * 2. **降级兼容**：name/description/parameters 字段名多源 fallback
  * 3. **同步/异步 handler 透明**
  *
- * 自定义工具（schedule_task、save_credentials、web_search）：
- * 平台不提供这些，自己注册到同一个 registry
+ * 自定义工具（schedule_task、save_credentials）：
+ * web_search 已删除 —— 改用平台 browser_* 工具直接搜 Bing，无需任何 API Key
+ * 平台不提供 KV 定时任务/凭证管理，自己注册
  */
 
 type ToolSchema = {
@@ -113,48 +114,7 @@ export function buildToolRegistry(context: any, customTools: Record<string, { sc
  */
 export function getCustomTools(ctx: any): Record<string, { schema: Omit<ToolSchema, 'type'>; handler: ToolHandler }> {
   return {
-    web_search: {
-      schema: {
-        name: 'web_search',
-        description: 'Search the web for current information: news, weather, prices, current events. Examples: "今天合肥天气", "iPhone 16 价格". NOT for math calculations.',
-        parameters: {
-          type: 'object',
-          properties: {
-            query: { type: 'string', description: 'Search keywords' },
-          },
-          required: ['query'],
-        },
-      },
-      handler: async (args: any) => {
-        // 调 DuckDuckGo
-        const query = args?.query || '';
-        try {
-          const res = await fetch(
-            `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`,
-            { signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined as any }
-          );
-          if (!res.ok) {
-            return `搜索「${query}」暂时不可用，请稍后再试。`;
-          }
-          const data: any = await res.json();
-          const results: string[] = [];
-          if (data.AbstractText) results.push(data.AbstractText);
-          if (data.RelatedTopics && Array.isArray(data.RelatedTopics)) {
-            for (const topic of data.RelatedTopics.slice(0, 5)) {
-              if (typeof topic === 'object' && topic.Text) {
-                results.push(`- ${topic.Text}`);
-              }
-            }
-          }
-          return results.length > 0
-            ? results.join('\n')
-            : `未找到关于「${query}」的详细结果。`;
-        } catch {
-          return `搜索「${query}」暂时不可用，请稍后再试。`;
-        }
-      },
-    },
-
+    // web_search 已删除 —— 改用 EdgeOne 平台 browser_* 工具去 Bing 搜索
     schedule_task: {
       schema: {
         name: 'schedule_task',
@@ -164,7 +124,7 @@ export function getCustomTools(ctx: any): Record<string, { schema: Omit<ToolSche
           properties: {
             name: { type: 'string', description: 'Task name' },
             cron: { type: 'string', description: 'Cron expression or Chinese description (e.g. "每天 9 点", "每隔一小时")' },
-            action: { type: 'string', enum: ['browser_automation', 'execute_code', 'web_search'], description: 'Action type to execute' },
+            action: { type: 'string', enum: ['browser_automation', 'execute_code'], description: 'Action type (browser covers web search too)' },
             params: { type: 'object', description: 'Action-specific parameters' },
             notify_email: { type: 'string', description: 'Optional notification email' },
             task_id: { type: 'string', description: 'Existing task ID (for management)' },
