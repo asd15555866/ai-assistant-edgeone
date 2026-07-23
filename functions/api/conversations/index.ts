@@ -37,23 +37,10 @@ export async function onRequestPost(context: any) {
 
   const body = await request.json().catch(() => ({}));
 
-  // 双写：Blob（Agent 运行时用）+ KV（Cloud Functions 用）
+  // 在 KV 创建对话（Blob 不可读，全线走 KV）
   const conversationId = generateId();
   const title = body.title || '新对话';
   const kv = new KVStore(env.AI_ASSISTANT_KV);
-
-  // 1. 写 Blob（Agent 运行时）
-  if (context.agent?.store?.appendMessage) {
-    try {
-      await context.agent.store.appendMessage({
-        conversationId,
-        role: 'system',
-        content: `Conversation created: ${title}`,
-      });
-    } catch { /* ignore */ }
-  }
-
-  // 2. 写 KV（Cloud Functions 读取）
   const conversation: Conversation = {
     id: conversationId,
     user_id: userId,
@@ -63,6 +50,6 @@ export async function onRequestPost(context: any) {
     message_count: 0,
   };
   await kv.createConversation(conversation);
-  log(SRC, { method: 'POST', path: pathname, userId, convId: conversationId, source: 'kv+store', status: 201, dur: Date.now() - t0 });
+  log(SRC, { method: 'POST', path: pathname, userId, convId: conversationId, source: 'kv', status: 201, dur: Date.now() - t0 });
   return json(201, { conversation });
 }
