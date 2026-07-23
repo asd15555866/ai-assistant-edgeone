@@ -23,7 +23,7 @@ export function useConversations() {
   const fetchConversations = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/conversations`, {
+      const res = await fetch(`${API_BASE}/conversations/`, {
         credentials: 'include',
       });
       if (!res.ok) throw new Error('获取对话列表失败');
@@ -43,7 +43,7 @@ export function useConversations() {
 
   const createConversation = async (title?: string): Promise<Conversation | null> => {
     try {
-      const res = await fetch(`${API_BASE}/conversations`, {
+      const res = await fetch(`${API_BASE}/conversations/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: title || '新对话' }),
