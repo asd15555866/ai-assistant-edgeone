@@ -615,7 +615,10 @@ async function callLLM(
   // API 地址
   const baseUrl = env.AI_GATEWAY_BASE_URL || 'https://api.deepseek.com';
   const apiKey = env.AI_GATEWAY_API_KEY || env.DEEPSEEK_API_KEY || '';
-  const apiUrl = `${baseUrl.replace(/\/+$/, '')}/v1/chat/completions`;
+  // 如果 baseUrl 已以 /v1 结尾（如 EdgeOne AI Gateway），不重复拼接
+  const apiUrl = baseUrl.replace(/\/+$/, '').endsWith('/v1')
+    ? `${baseUrl.replace(/\/+$/, '')}/chat/completions`
+    : `${baseUrl.replace(/\/+$/, '')}/v1/chat/completions`;
 
   const body = {
     model,

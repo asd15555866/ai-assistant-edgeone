@@ -29,7 +29,10 @@ export async function onRequestGet(context: any) {
   }
 
   try {
-    const url = `${baseUrl.replace(/\/+$/, '')}/v1/models`;
+    const isGateway = baseUrl.replace(/\/+$/, '').endsWith('/v1');
+    const url = isGateway
+      ? `${baseUrl.replace(/\/+$/, '')}/models`
+      : `${baseUrl.replace(/\/+$/, '')}/v1/models`;
     const response = await fetch(url, {
       method: 'GET',
       headers: { Authorization: `Bearer ${apiKey}` },
